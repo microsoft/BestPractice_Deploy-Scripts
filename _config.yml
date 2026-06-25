@@ -2,8 +2,8 @@ title: SMB Best Practice Tool
 description: >-
   PowerShell automation that configures Microsoft 365 tenants against
   Microsoft's recommended best-practice baselines for Small / Medium customers.
-url: "https://amirjafarian.github.io"
-baseurl: "/SMBBestPracticeTool"
+url: "https://microsoft.github.io/"
+baseurl: "/BestPractice_Deploy-Scripts"
 
 # Build from the repository root so existing docs in Products/<Product>/docs/
 # remain the single source of truth. No duplication, no build script.
@@ -26,12 +26,12 @@ back_to_top_text: "Back to top"
 # Footer
 footer_content: >-
   &copy; Microsoft partner sample. Provided AS IS with no warranty.
-  See <a href="https://github.com/amirjafarian/SMBBestPracticeTool">repository</a>
+  See <a href="https://microsoft.github.io/BestPractice_Deploy-Scripts/">repository</a>
   for the LICENSE and disclaimer.
 
 aux_links:
   "GitHub":
-    - "https://github.com/amirjafarian/SMBBestPracticeTool"
+    - "https://microsoft.github.io/BestPractice_Deploy-Scripts/"
 
 # What Jekyll should turn into pages. Anything not in include/ and not in the
 # default Jekyll-tracked locations is ignored. Anything in exclude wins.
