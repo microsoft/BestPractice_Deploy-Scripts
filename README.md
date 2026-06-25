@@ -10,9 +10,9 @@ partners/MSPs and in-house IT teams alike.
 
 | Product | Toolkit | Docs | Status |
 |---------|---------|------|--------|
-| Microsoft Purview (Data Security baseline for Business Premium) | [`Products/Purview/`](Products/Purview/README.md) | [Site](https://amirjafarian.github.io/SMBBestPracticeTool/purview/) | Available |
+| Microsoft Purview (Data Security baseline for Business Premium) | [`Products/Purview/`](Products/Purview/README.md) | [Site](https://microsoft.github.io/BestPractice_Deploy-Scripts/purview/) | Available |
 
-> 📖 **Full documentation site:** <https://amirjafarian.github.io/SMBBestPracticeTool/>
+> 📖 **Full documentation site:** <https://microsoft.github.io/BestPractice_Deploy-Scripts/>
 > — searchable HTML version of every product's docs, with sidebar
 > navigation and per-product landing pages. Source markdown stays in
 > `Products/<Product>/docs/`; the site is built by GitHub Pages from
