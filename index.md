@@ -70,8 +70,8 @@ across all of them:
 ```powershell
 # Clone the repo, then run the toolkit for the product you want to configure.
 # Example: Purview baseline against a Business Premium tenant.
-git clone https://github.com/amirjafarian/SMBBestPracticeTool.git
-cd SMBBestPracticeTool\Products\Purview
+git clone https://github.com/microsoft/BestPractice_Deploy-Scripts.git
+cd BestPractice_Deploy-Scripts\Products\Purview
 .\Deploy-PurviewBestPractice.ps1 -TenantAdminUpn admin@contoso.onmicrosoft.com -WhatIf
 ```
 
@@ -82,7 +82,7 @@ cd SMBBestPracticeTool\Products\Purview
 This sample script is **not** supported under any Microsoft standard
 support program or service. The sample script is provided AS IS without
 warranty of any kind. The full disclaimer and license are in the
-[repository LICENSE file](https://github.com/amirjafarian/SMBBestPracticeTool/blob/main/LICENSE).
+[repository LICENSE file](https://github.com/microsoft/BestPractice_Deploy-Scripts/blob/main/LICENSE).
 
 Please do not contact Microsoft support with any issues or concerns
 regarding this script.
