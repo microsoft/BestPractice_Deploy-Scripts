@@ -34,6 +34,7 @@ Gemfile.lock
 vendor/bundle/
 
 # OS/editor machine artifacts
+.impeccable/
 .idea/
 .vs/
 *.code-workspace

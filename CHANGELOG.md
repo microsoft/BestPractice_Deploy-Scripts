@@ -49,6 +49,25 @@ landed but not yet been tagged in a release appear under **Unreleased**.
 
 ---
 
+## [Unreleased]
+
+### Added
+
+- **[Defender] Initial low-touch product foundation.** Adds the independent
+  PowerShell Defender product boundary, configuration contract, tenant/API
+  preflight, license capability classification, safety gates, and
+  Purview-aligned structured JSON/HTML evidence. The current implementation is
+  pre-release and does not yet claim production-ready tenant enforcement.
+
+### Security
+
+- **[Defender] Safe-by-default readiness checks.** Noninteractive runs require
+  certificate authentication parameters; audit readiness and emergency-access
+  safety remain explicit guided-only decisions when no stable unattended check is
+  claimed; secrets and operator UPNs are redacted from evidence.
+
+---
+
 ## [1.2.0] - 2026-07-01
 
 > **Note — significant redesign (within Purview).** This reworks Purview sensitivity-label

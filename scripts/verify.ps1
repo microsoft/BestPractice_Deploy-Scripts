@@ -27,6 +27,108 @@ foreach ($c in $psd1) {
     catch { Write-Host "  INVALID: $($c.FullName) -> $($_.Exception.Message)"; $failures++ }
 }
 
+Write-Host "== Defender scaffold contract =="
+$defenderRoot = Join-Path $prod 'Defender'
+if (Test-Path -LiteralPath $defenderRoot) {
+    $requiredDefenderFiles = @(
+        'Deploy-DefenderBestPractice.ps1',
+        'Config\DefenderConfig.psd1',
+        'Modules\Connect-DefenderServices.ps1',
+        'Modules\DefenderRunLog.ps1',
+        'Modules\Invoke-WithTransientRetry.ps1',
+        'Modules\Write-DefenderHtmlReport.ps1',
+        'Modules\Setup-DefenderPreflight.ps1',
+        'Modules\Setup-MdoEopBaseline.ps1',
+        'Modules\Setup-DefenderForBusiness.ps1',
+        'Modules\Setup-MdeAdvanced.ps1',
+        'Modules\Setup-DefenderForCloudApps.ps1'
+    )
+    foreach ($relativePath in $requiredDefenderFiles) {
+        $requiredPath = Join-Path $defenderRoot $relativePath
+        if (Test-Path -LiteralPath $requiredPath) {
+            Write-Host "  OK: Products/Defender/$relativePath"
+        }
+        else {
+            Write-Host "  MISSING: Products/Defender/$relativePath"
+            $failures++
+        }
+    }
+    try {
+        $defenderConfig = Import-PowerShellDataFile -LiteralPath (Join-Path $defenderRoot 'Config\DefenderConfig.psd1')
+        $keys = @($defenderConfig.BestPracticeItems | ForEach-Object { $_.Key })
+        if ($keys.Count -eq 0 -or @($keys | Where-Object { $_ -notmatch '^[a-z0-9]+(?:-[a-z0-9]+)+$' }).Count -gt 0) {
+            Write-Host "  INVALID: Defender BestPracticeItems keys must use lowercase kebab-case."
+            $failures++
+        }
+        elseif (@($keys | Sort-Object -Unique).Count -ne $keys.Count) {
+            Write-Host "  INVALID: Defender BestPracticeItems keys must be unique."
+            $failures++
+        }
+        else {
+            Write-Host "  OK: Defender BestPracticeItems key contract"
+        }
+        $capabilityKeys = @($defenderConfig.LicenseCapabilities.Keys)
+        $missingMappings = @($defenderConfig.BestPracticeItems | Where-Object {
+            [string]::IsNullOrWhiteSpace([string] $_.LicenseCapability) -or
+            $_.LicenseCapability -notin $capabilityKeys
+        })
+        if ($missingMappings.Count -gt 0) {
+            Write-Host "  INVALID: Defender license capability mappings are incomplete."
+            $failures++
+        }
+        else {
+            Write-Host "  OK: Defender license capability mappings"
+        }
+        if (@($defenderConfig.Api.RequiredCommands).Count -eq 0) {
+            Write-Host "  INVALID: Defender API command readiness contract is empty."
+            $failures++
+        }
+        else {
+            Write-Host "  OK: Defender API command readiness contract"
+        }
+
+        $fixtureRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("defender-verify-" + [guid]::NewGuid().ToString('N'))
+        try {
+            New-Item -ItemType Directory -Path $fixtureRoot -Force | Out-Null
+            . (Join-Path $defenderRoot 'Modules\DefenderRunLog.ps1')
+            . (Join-Path $defenderRoot 'Modules\Write-DefenderHtmlReport.ps1')
+            $fixtureJson = Join-Path $fixtureRoot 'fixture.json'
+            $fixtureHtml = Join-Path $fixtureRoot 'fixture.html'
+            Initialize-DefenderRunLog -JsonPath $fixtureJson -ScriptVersion $defenderConfig.ProductVersion
+            Add-DefenderRunLogEntry -Module 'verify' -Action 'Fixture' -Status 'Info' `
+                -BestPracticeKey 'mdo-safe-attachments' -Disposition 'Applicable' `
+                -Detail 'access_token=fixture-secret'
+            Add-DefenderRunLogEntry -Module 'verify' -Action 'Fixture' -Status 'Skipped' `
+                -Disposition 'GuidedOnly' -Detail 'guided-only fixture'
+            Save-DefenderRunLogJson
+            Write-DefenderHtmlReport -Path $fixtureHtml -Entries (Get-DefenderRunLog)
+            $fixturePayload = Get-Content -LiteralPath $fixtureJson -Raw | ConvertFrom-Json
+            $fixtureMarkup = Get-Content -LiteralPath $fixtureHtml -Raw
+            if ($fixturePayload.entryCount -ne 2 -or
+                $fixturePayload.entries[0].detail -match 'fixture-secret' -or
+                $fixtureMarkup -notmatch 'Disposition' -or
+                $fixtureMarkup -notmatch 'GuidedOnly') {
+                throw 'Defender logger/report fixture assertions failed.'
+            }
+            Write-Host "  OK: Defender logger/report fixture"
+        }
+        catch {
+            Write-Host "  INVALID: Defender logger/report fixture -> $($_.Exception.Message)"
+            $failures++
+        }
+        finally {
+            Clear-DefenderRunLog
+            if (Test-Path -LiteralPath $fixtureRoot) {
+                Remove-Item -LiteralPath $fixtureRoot -Recurse -Force
+            }
+        }
+    }
+    catch {
+        Write-Host "  INVALID: Defender configuration contract -> $($_.Exception.Message)"
+        $failures++
+    }
+}
+
 Pop-Location
 if ($failures -gt 0) { Write-Host "verify.ps1 FAILED with $failures error(s)." -ForegroundColor Red; exit 1 }
 Write-Host "verify.ps1 PASSED." -ForegroundColor Green
