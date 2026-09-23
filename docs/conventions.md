@@ -48,9 +48,9 @@ Additional validation paths:
    [System.Management.Automation.Language.Parser]::ParseFile('Products\Purview\Modules\Setup-DLP.ps1', [ref]$toks, [ref]$errs)
    if ($errs) { $errs | ForEach-Object { $_.Message } } else { 'OK' }
    ```
-2. **`-WhatIf` dry run against a real (pilot) tenant** — every module wires
-   `SupportsShouldProcess`, so a full `-WhatIf` pass previews every
-   state-changing call without applying it:
+2. **`-WhatIf` dry run against a real (pilot) tenant** — the deployment task modules wire
+   `SupportsShouldProcess`, but `Connect-PurviewServices.ps1` intentionally keeps
+   `$WhatIfPreference = $false`, so the preview still establishes live service sessions.
    ```powershell
    cd Products/Purview
    .\Deploy-PurviewBestPractice.ps1 -TenantAdminUpn admin@contoso.onmicrosoft.com -WhatIf
