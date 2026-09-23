@@ -166,12 +166,21 @@ instead.
 
 ## Git workflow
 
-- `main` is protected — PRs required (even for admins), no direct pushes.
-- `staging` is the integration branch; work lands there first.
-- Promote `staging` → `main` via PR, squash-merged; then back-merge the
-  resulting `main` commit into `staging` (`git merge origin/main`) so history
-  stays clean for the next cycle — this is the established pattern (see
-  `git log --oneline` for prior "Back-merge origin/main into staging" commits).
+- `main` is protected — PRs are required (even for admins); do not push directly.
+- Do not depend on or create a shared `staging` branch. Each change is developed
+  in its own feature branch and reviewed through a PR.
+- When a PR needs a promotion or integration target, create a dedicated promotion
+  branch for that PR. Name it predictably, for example
+  `promotion/pr-<number>-<short-name>`, and do not reuse it for another PR.
+- The promotion branch must contain only the reviewed PR changes plus any explicitly
+  approved promotion fixes. Keep the branch synchronized with the intended base
+  (`main`) and use it as the validation and promotion boundary for that PR.
+- Promote the PR-specific branch to `main` through the required PR review and merge
+  process. Do not treat the existence of a promotion branch as approval to merge
+  or deploy; human review, required checks, and tenant-approval safeguards still apply.
+- After the PR is merged or abandoned, delete the PR-specific promotion branch
+  when repository policy permits it. Never back-merge into a shared integration
+  branch because none is maintained.
 - Tag releases `vX.Y.Z` on `main` after merge; a GitHub Release can be cut from
   the same tag using the CHANGELOG entry as its notes.
 
@@ -182,4 +191,4 @@ much more detailed per-module decision logs and conventions
 (`Skills/_CONVENTIONS.md`, `Skills/Purview/_CONVENTIONS.md`,
 `Skills/Purview/<Module>.skill.md`) built up over the project's history. It is
 not part of the git repository (not visible on a fresh clone), so treat it as
-a bonus when present, not a dependency.
+ a bonus when present, not a dependency.
