@@ -190,6 +190,16 @@
     Also propagates to the DLP module so any custom workload added to
     PurviewConfig.psd1 that requires E5 is rejected up-front.
 
+.PARAMETER DeploymentPlanPath
+    Optional path for the pre-connection Deployment Plan HTML file. The JSON
+    sidecar uses the same basename. By default both files are written to the
+    caller's working directory.
+
+.PARAMETER NoDeploymentPlan
+    Suppress the offline Deployment Plan. This does not suppress the end-of-run
+    deployment report. Plan generation is best effort and never blocks service
+    connection when a local rendering or file-write error occurs.
+
 .EXAMPLE
     # Standard partner-managed customer onboarding — SharePoint admin URL is
     # auto-derived from the tenant's initial domain.
@@ -298,7 +308,13 @@ param(
     [string] $ReportPath,
 
     [Parameter()]
-    [switch] $NoReport
+    [switch] $NoReport,
+
+    [Parameter()]
+    [string] $DeploymentPlanPath,
+
+    [Parameter()]
+    [switch] $NoDeploymentPlan
 )
 
 $ErrorActionPreference = 'Stop'
@@ -311,7 +327,7 @@ $ConfirmPreference   = 'None'
 # Surfaced in the end-of-run HTML report and (eventually) in support logs.
 # Bump on each release. The runtime build suffix is the short Git SHA when
 # the script lives in a working tree -- fall back to '' in tarball deploys.
-$script:DeployVersion = '1.2.0'
+$script:DeployVersion = '1.4.0'
 try {
     $gitSha = & git -C $PSScriptRoot rev-parse --short HEAD 2>$null
     if ($LASTEXITCODE -eq 0 -and $gitSha) {
@@ -329,6 +345,7 @@ $script:RunId     = [guid]::NewGuid()
 # and the retry helper will append decision-point entries to. Dot-source
 # here so the functions are defined before any module is invoked.
 . (Join-Path $PSScriptRoot 'Modules\PurviewRunLog.ps1')
+. (Join-Path $PSScriptRoot 'Modules\PurviewTenantIdentity.ps1')
 Initialize-PurviewRunLog
 
 # ---------------------------------------------------------------------------
@@ -391,10 +408,24 @@ $labelsScript       = Join-Path $moduleRoot 'Setup-SensitivityLabels.ps1'
 $dlpScript          = Join-Path $moduleRoot 'Setup-DLP.ps1'
 $retentionScript    = Join-Path $moduleRoot 'Setup-Retention.ps1'
 $aiScript           = Join-Path $moduleRoot 'Setup-AIGovernance.ps1'
+$deploymentPlanScript = Join-Path $moduleRoot 'Write-PurviewDeploymentPlan.ps1'
+$configurationContractScript = Join-Path $moduleRoot 'PurviewConfigurationContract.ps1'
+$guideMappingPath     = Join-Path $scriptRoot 'References\DataSecuritySmbGuideMapping.psd1'
+$supportingGuideMappingPath = Join-Path $scriptRoot 'References\MicrosoftLearnLightweightDlpMapping.psd1'
 
-foreach ($s in @($connectScript, $tenantScript, $labelsScript, $dlpScript, $retentionScript, $aiScript)) {
+foreach ($s in @(
+    $connectScript,
+    $tenantScript,
+    $labelsScript,
+    $dlpScript,
+    $retentionScript,
+    $aiScript,
+    $configurationContractScript
+)) {
     if (-not (Test-Path $s)) { throw "Required module script not found: $s" }
 }
+. $configurationContractScript
+Assert-PurviewLabelIdentityConfiguration -Config $config
 
 # ---------------------------------------------------------------------------
 # Validate parameter combinations
@@ -437,6 +468,84 @@ if ($EnableContainerLabels -and $SkipContainerLabels) {
 }
 if ($EnableContainerLabels) {
     Write-Warning "-EnableContainerLabels is deprecated and ignored: container labels are now default-on (Business Premium is the licensing floor and BP includes Entra ID P1, the AAD-side requirement). Pass -SkipContainerLabels to opt out. This switch will be removed in a future release."
+}
+
+# ---------------------------------------------------------------------------
+# Offline Deployment Plan
+# ---------------------------------------------------------------------------
+if ($NoDeploymentPlan) {
+    Add-RunLogEntry -Module 'Write-PurviewDeploymentPlan' -Action 'Generate plan' `
+        -Status 'Skipped' -Detail '-NoDeploymentPlan was set'
+} else {
+    try {
+        if (-not (Test-Path -LiteralPath $deploymentPlanScript -PathType Leaf)) {
+            throw "Deployment Plan writer not found: $deploymentPlanScript"
+        }
+        if (-not (Test-Path -LiteralPath $guideMappingPath -PathType Leaf)) {
+            throw "Deployment Plan guide mapping not found: $guideMappingPath"
+        }
+        if (-not (Test-Path -LiteralPath $supportingGuideMappingPath -PathType Leaf)) {
+            throw "Deployment Plan supporting guide mapping not found: $supportingGuideMappingPath"
+        }
+
+        . $deploymentPlanScript
+        $guideMapping = Import-PowerShellDataFile -LiteralPath $guideMappingPath
+        $supportingGuideMapping = Import-PowerShellDataFile -LiteralPath $supportingGuideMappingPath
+        $planId = [guid]::NewGuid()
+        $planGeneratedAt = [datetime]::UtcNow
+        $planReference = New-PurviewPlanReference -PlanId $planId -GeneratedAt $planGeneratedAt
+        $resolvedDeploymentPlanPath = if ($DeploymentPlanPath) {
+            $DeploymentPlanPath
+        } else {
+            Join-Path (Get-Location).Path (
+                'Deploy-PurviewBestPractice-Plan-{0}.html' -f $planReference
+            )
+        }
+        $deploymentPlanModel = Get-PurviewDeploymentPlanModel `
+            -Config $config `
+            -ConfigPath $ConfigPath `
+            -Parameters $PSBoundParameters `
+            -GuideMapping $guideMapping `
+            -SupportingGuideMappings @($supportingGuideMapping) `
+            -ScriptVersion $script:DeployVersion `
+            -PlanId $planId `
+            -PlanReference $planReference `
+            -GeneratedAt $planGeneratedAt
+        $deploymentPlanResult = Write-PurviewDeploymentPlan `
+            -Model $deploymentPlanModel `
+            -OutputPath $resolvedDeploymentPlanPath
+
+        Write-Host ("`nDeployment Plan reference: {0}" -f $deploymentPlanResult.PlanReference) -ForegroundColor Cyan
+        Write-Host ("Deployment Plan HTML:      {0}" -f ([IO.Path]::GetFileName($deploymentPlanResult.HtmlPath))) -ForegroundColor Cyan
+        Write-Host ("Plan JSON sidecar:          {0}" -f ([IO.Path]::GetFileName($deploymentPlanResult.JsonPath))) -ForegroundColor Cyan
+        Add-RunLogEntry -Module 'Write-PurviewDeploymentPlan' -Action 'Generate plan' `
+            -Target ([IO.Path]::GetFileName($deploymentPlanResult.HtmlPath)) `
+            -Status 'Succeeded' `
+            -Detail (
+                'planReference={0}; configurationSha256={1}; planInputSha256={2}' -f
+                $deploymentPlanResult.PlanReference,
+                $deploymentPlanResult.ConfigurationSha256,
+                $deploymentPlanResult.PlanInputSha256
+            )
+    } catch {
+        $planErrorType = $_.Exception.GetType().Name
+        $planGuidance = if ($planErrorType -in @(
+            'IOException',
+            'UnauthorizedAccessException',
+            'DirectoryNotFoundException',
+            'DriveNotFoundException',
+            'ItemNotFoundException',
+            'NotSupportedException'
+        )) {
+            'Review the output directory and permissions.'
+        } else {
+            'Review the local guide mappings and Deployment Plan renderer.'
+        }
+        $planWarning = "Offline Deployment Plan could not be written ($planErrorType). $planGuidance"
+        Write-Warning $planWarning
+        Add-RunLogEntry -Module 'Write-PurviewDeploymentPlan' -Action 'Generate plan' `
+            -Status 'Info' -Detail "WARNING: $planWarning"
+    }
 }
 
 # ---------------------------------------------------------------------------
@@ -528,7 +637,7 @@ $containerLabelsInScope     = (-not $SkipTenantSettings -and -not $SkipContainer
 $wantGraphForAutoDetect = (-not $BPOnly -and -not $NoLicenseAutoDetect -and
                            ($aiInScope -or $containerLabelsInScope))
 if ($containerLabelsInScope -or $wantGraphForAutoDetect) { $connectArgs['ConnectGraph'] = $true }
-# Least-privilege Graph scopes (Jim's PR1 feedback):
+# Least-privilege Graph scopes:
 #   * Organization.Read.All       — covers /subscribedSkus + /organization (license auto-detect, tenant-identity confirm)
 #   * Directory.ReadWrite.All     — added upfront whenever container labels are in scope.
 #                                   Required for Get-MgBetaDirectorySettingTemplate + New-/Update-MgBetaDirectorySetting
@@ -715,117 +824,15 @@ if ($wantGraphForAutoDetect) {
 # 'Other' tier). Block removed; nothing to do here.
 
 # ---------------------------------------------------------------------------
-# Tenant identity confirmation (PR1 — Jim's feedback)
+# Tenant identity confirmation
 # ---------------------------------------------------------------------------
 # After connect succeeds, resolve the ACTUAL tenant we landed in and confirm
 # it matches what the user implied via -TenantAdminUpn / -DelegatedOrganization.
 # Catches the classic "I thought I was on tenant A but my last interactive
 # sign-in was on tenant B" disaster before any destructive change runs.
-function Get-ActualTenantIdentity {
-    [CmdletBinding()]
-    param()
-
-    $identity = [pscustomobject]@{
-        DisplayName   = $null
-        TenantId      = $null
-        DefaultDomain = $null
-        InitialDomain = $null
-        AllDomains    = @()
-        Source        = $null
-    }
-
-    # Prefer Graph (cleaner structured response) when /organization is reachable.
-    if (Get-Command Invoke-MgGraphRequest -ErrorAction SilentlyContinue) {
-        try {
-            $org = Invoke-MgGraphRequest -Method GET `
-                -Uri 'https://graph.microsoft.com/v1.0/organization?$select=id,displayName,verifiedDomains' `
-                -ErrorAction Stop
-            if ($org -and $org.value -and $org.value.Count -gt 0) {
-                $o = $org.value[0]
-                $identity.DisplayName = $o.displayName
-                $identity.TenantId    = $o.id
-                $identity.AllDomains  = @($o.verifiedDomains | ForEach-Object { $_.name })
-                $defaultDom = @($o.verifiedDomains | Where-Object { $_.isDefault })
-                $initialDom = @($o.verifiedDomains | Where-Object { $_.isInitial })
-                if ($defaultDom.Count -gt 0) { $identity.DefaultDomain = $defaultDom[0].name }
-                if ($initialDom.Count -gt 0) { $identity.InitialDomain = $initialDom[0].name }
-                $identity.Source = 'Microsoft Graph (/organization)'
-                return $identity
-            }
-        } catch {
-            Write-Verbose "Graph identity lookup failed, falling back to EXO: $($_.Exception.Message)"
-        }
-    }
-
-    # Fall back to Exchange Online — always available because EXO is the first
-    # service we connect to.
-    try {
-        $orgCfg = Get-OrganizationConfig -ErrorAction Stop
-        if ($orgCfg) {
-            $identity.DisplayName = if ($orgCfg.DisplayName) { $orgCfg.DisplayName } else { $orgCfg.Name }
-            if ($orgCfg.PSObject.Properties['Guid'] -and $orgCfg.Guid) {
-                $identity.TenantId = [string]$orgCfg.Guid
-            }
-        }
-        $domains = @(Get-AcceptedDomain -ErrorAction Stop)
-        $identity.AllDomains = @($domains | ForEach-Object { $_.DomainName })
-        $defaultDom = @($domains | Where-Object { $_.Default })
-        $initialDom = @($domains | Where-Object { $_.InitialDomain })
-        if ($defaultDom.Count -gt 0) { $identity.DefaultDomain = $defaultDom[0].DomainName }
-        if ($initialDom.Count -gt 0) { $identity.InitialDomain = $initialDom[0].DomainName }
-        $identity.Source = 'Exchange Online (Get-OrganizationConfig + Get-AcceptedDomain)'
-        return $identity
-    } catch {
-        throw "Could not resolve tenant identity from Graph or Exchange Online. Connection may have failed silently. Error: $($_.Exception.Message)"
-    }
-}
-
-function Test-ExpectedTenantMatch {
-    [CmdletBinding()]
-    param(
-        [Parameter(Mandatory)] $Identity,
-        [string] $TenantAdminUpn,
-        [string] $DelegatedOrganization
-    )
-
-    # GDAP: expected = -DelegatedOrganization (a domain on the customer tenant).
-    # Non-GDAP: expected = the admin UPN's domain suffix.
-    $expected = if ($DelegatedOrganization) {
-        $DelegatedOrganization.ToLowerInvariant()
-    } elseif ($TenantAdminUpn -match '@(.+)$') {
-        $Matches[1].ToLowerInvariant()
-    } else {
-        $null
-    }
-
-    if (-not $expected) {
-        return [pscustomobject]@{
-            Match    = $false
-            Source   = '(could not derive expected tenant from inputs)'
-            Expected = $null
-            Reason   = 'Cannot validate tenant identity: no -DelegatedOrganization and -TenantAdminUpn has no domain suffix.'
-        }
-    }
-
-    $source = if ($DelegatedOrganization) { '-DelegatedOrganization' } else { 'admin UPN suffix' }
-    $allDomains = @($Identity.AllDomains | ForEach-Object { $_.ToLowerInvariant() })
-    $match = $allDomains -contains $expected
-
-    return [pscustomobject]@{
-        Match    = $match
-        Source   = $source
-        Expected = $expected
-        Reason   = if ($match) {
-                        "Expected domain '$expected' (from $source) is a verified domain on the connected tenant."
-                    } else {
-                        "Expected domain '$expected' (from $source) is NOT a verified domain on the connected tenant. The signed-in session appears to be authed against a DIFFERENT tenant than intended."
-                    }
-    }
-}
-
 Write-Host "`n--- Tenant identity confirmation ---" -ForegroundColor White
-$tenantIdentity = Get-ActualTenantIdentity
-$expectedMatch  = Test-ExpectedTenantMatch -Identity $tenantIdentity `
+$tenantIdentity = Get-PurviewTenantIdentity
+$expectedMatch  = Test-PurviewExpectedTenantMatch -Identity $tenantIdentity `
                     -TenantAdminUpn $TenantAdminUpn `
                     -DelegatedOrganization $DelegatedOrganization
 
@@ -876,7 +883,7 @@ if (-not $WhatIfPreference -and -not $NonInteractive) {
 # ---------------------------------------------------------------------------
 # Run tasks in order
 # ---------------------------------------------------------------------------
-# Jim's PR5 feedback: wrap the entire run-tasks block in try/finally so the
+# Wrap the entire run-tasks block in try/finally so the
 # deployment summary ALWAYS prints, even when one of the modules throws a
 # terminating error mid-run. Operators need to know what got done before the
 # crash; losing the summary is worse than the crash itself.

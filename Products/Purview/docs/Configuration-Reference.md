@@ -82,7 +82,10 @@ scope, edit the relevant hashtable in the `Labels = @( ... )` array.
 > **create** it byte-identical to Microsoft's default on a blank tenant.
 > You can freely change `DisplayName`/`Tooltip`/colour/encryption — just
 > don't remove or repoint `BuiltInName` on a built-in label, or adoption
-> will stop matching it and the toolkit may create a duplicate.
+> will stop matching it and the toolkit may create a duplicate. A non-empty
+> value that does not match the documented signature now fails local preflight
+> before Deployment Plan generation or authentication. Leave `BuiltInName`
+> empty for a genuinely custom label.
 
 ### Encryption rights
 
@@ -102,8 +105,8 @@ BP).
 
 | Field | Example | What it controls |
 |---|---|---|
-| `Workload` | `Exchange`, `SharePointOneDrive`, `Endpoint` | Which surface the policy targets. E5-only workloads: `Endpoint`/`Devices`, `OnPremisesScanner`, `DefenderForCloudApps`, `PowerBI` (rejected under `-BPOnly`). |
-| `LabelPaths` | `Confidential/AllEmployees`, … | The sensitivity labels the rule matches (OR-matched, resolved to **GUIDs** at runtime). |
+| `Workload` | `Exchange`, `SharePointOneDrive`, `Endpoint` | Which supported surface the policy targets. Defender for Cloud Apps, on-premises, Power BI, and workload aliases are not implemented and are skipped with evidence. |
+| `LabelPaths` | `Confidential/AllEmployees`, … | Preferred array of sensitivity labels the rule matches (OR-matched, resolved to **GUIDs** at runtime). Legacy singular `LabelPath` remains supported when `LabelPaths` is absent. |
 | `BlockAccess` | `$true` | Whether matched content is blocked. |
 | `EndpointDlpRestrictions[].Value` | `Audit` → `Block`/`Warn`/`BlockOverride` | (Endpoint only) Per-device-action enforcement. Start at `Audit`, tighten after reviewing telemetry in DLP Activity Explorer. |
 
@@ -122,7 +125,7 @@ shipped default **retains Exchange mail for 7 years, then deletes it**.
 | `Retention.DurationDays` | `2555` (= **7 years**) | Retention period **in days**. Change to your required duration (e.g. `3650` for 10 years). The `DurationDisplayHint` is cosmetic only. |
 | `Retention.Action` | `KeepAndDelete` | `KeepAndDelete` retains then deletes; other Purview actions retain-only / delete-only. |
 | `Retention.ExpirationDateOption` | `CreationAgeInDays` | Whether the clock starts at item creation vs last modification. |
-| `Retention.Locations` | `@('Exchange')` | Add `'SharePoint'`, `'OneDrive'` to widen scope beyond mailboxes. |
+| `Retention.Locations` | `@('Exchange')` | Supported values are `Exchange`, `SharePoint`, and `OneDrive`. Mixed lists deploy the supported subset and report unsupported entries. If none are supported, the Deployment Plan excludes retention and the runtime module fails before tenant reads or writes. |
 
 > 🚨 **Read the [Retention Default — Risk Note](retention-default-risk/) before
 > enabling retention.** The 7-year auto-delete is right for many SMB regulatory
@@ -139,6 +142,7 @@ Default-on for **E5 / Purview Suite** (auto-skipped on BP; opt out with
 | `AIGovernance.DlpPolicies[].Mode` | `Enable` | `Enable` / `TestWithNotifications` / `TestWithoutNotifications` / `Disable`. |
 | `AIGovernance.DlpPolicies[].LabelPaths` | `HighlyConfidential` | Which labels Copilot is blocked from grounding on. |
 | `AIGovernance.DlpPolicies[].EnforcementPlanes` | `CopilotExperiences` | Add `Agent` to extend coverage to Agent 365 (preview). |
+| `AIGovernance.DlpPolicies[].Locations[].Location` | Microsoft 365 Copilot public location GUID | The runtime API receives the documented GUID. The comparison-safe Deployment Plan records the canonical `Microsoft365Copilot` token. Custom locations retain only a redacted value, class, and deterministic one-way digest so different targets do not collapse. |
 | `Locations[].Inclusions` | tenant-wide (`Tenant=All`) | Swap to a `Group` inclusion (see the commented example in the file) to pilot on a security group first. |
 
 ### Tenant settings (`TenantSettings`)
@@ -149,6 +153,65 @@ Default-on for **E5 / Purview Suite** (auto-skipped on BP; opt out with
 | `EnableSensitivityLabelForPDF` | `$true` | Allow labels on PDFs. |
 | `EnableAIPIntegrationInSPO` | `$true` | SharePoint AIP / label integration. |
 | `EnableLabelCoAuth` | `$false` | **One-way switch** — co-authoring on encrypted Office files. Operator opt-in via `-EnableLabelCoAuthoring`. **Disabling later loses labels on unencrypted Office files and breaks older AIP scanners / OneDrive sync / MIP SDK / custom scanners.** Leave `$false` unless you understand the [one-way semantics](https://learn.microsoft.com/purview/sensitivity-labels-coauthoring). |
+
+---
+
+## Offline Deployment Plan
+
+Each invocation writes an offline Deployment Plan after local config and
+parameter validation, before any service connection. The HTML and JSON files
+come from one model and include:
+
+- a non-identifying config source classification and SHA-256;
+- a deterministic plan-input SHA-256;
+- effective non-sensitive switches;
+- module and action intent;
+- the supplied Data Security Deployment Guide for Small Business, grouped by
+  cumulative Deployment Priority Levels: Priority 1 (Good), Priority 2
+  (Better), and Priority 3 (Best);
+- the pinned Microsoft Learn Lightweight guide as a separate supporting
+  reference;
+- a UUID Plan ID and short `PUR-yyyyMMdd-HHmmss-XXXXXXXX` plan reference.
+- a sanitized intended-state snapshot and independent SHA-256 for later
+  read-only tenant comparison.
+
+The primary mapping follows the supplied deck: Good includes audit logging,
+labels, container and SharePoint/OneDrive label enablement, and core DLP;
+Better includes Exchange retention; Best includes Endpoint, Teams, and Copilot
+DLP, auto-labeling, encryption, custom sensitive information types, and DSPM.
+Actions not assigned by the deck are reported as toolkit extensions.
+The HTML Action Preview includes a closed **How to read the Action Preview**
+panel that defines every intent, priority-level, and recommendation-comparison
+status without changing the canonical JSON values.
+
+The plan uses `Included`, `Excluded`, `Conditional`, and `Not configured`. A
+conditional item still needs runtime license or prerequisite confirmation. The
+plan does not read the tenant and cannot tell whether an object will be created,
+updated, adopted, or left unchanged.
+
+| Parameter | Behavior |
+|---|---|
+| `-DeploymentPlanPath <path>` | Sets the `.html` or `.htm` path. Other extensions are rejected. The JSON sidecar uses the same basename. |
+| `-NoDeploymentPlan` | Suppresses both pre-connection plan artifacts. |
+| `-ReportPath <path>` | Sets the separate end-of-run HTML report path. |
+| `-NoReport` | Suppresses only the end-of-run HTML and JSON evidence. |
+
+Plan generation is best effort. A local rendering or file-write failure is
+recorded as a warning and does not block the deployment.
+
+Default filenames include the short plan reference. The Plan ID and reference
+identify one generated HTML and JSON pair. The deterministic plan-input
+SHA-256 identifies equivalent effective configuration and mapping inputs across
+generations. The intended-state SHA-256 identifies the normalized comparison
+snapshot. It also records publication mode, encryption lifetime, ownership,
+and deterministic opaque digests for custom principals. Ownership is carried
+as the top-level `ManagedByTag` field and included in the plan-input
+fingerprint, not in `IntendedStateSha256`. The snapshot is
+private customer-sensitive evidence because configured object names needed for
+matching can appear. Tenant identity, live GUIDs in free text, mailbox UPNs,
+resolved tenant domains, credentials, secrets, and local paths are excluded.
+The dependent tenant-validation PR must be reconciled with this finalized
+schema before `-PlanPath` is supported as an operator workflow.
 
 ---
 

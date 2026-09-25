@@ -71,6 +71,9 @@ $ConfirmPreference   = 'None'
 
 # Shared retry helper for transient IPPS errors (502, 503, 504, 429, timeouts).
 . (Join-Path $PSScriptRoot 'Invoke-WithTransientRetry.ps1')
+. (Join-Path $PSScriptRoot 'PurviewConfigurationContract.ps1')
+
+Assert-PurviewLabelIdentityConfiguration -Config $Config
 
 if ($BPOnly) {
     # Module-side defense-in-depth: the orchestrator already gates this step
@@ -518,7 +521,7 @@ function Build-CopilotAdvancedRuleJson {
         if (-not $l.Name -or -not $l.Guid) {
             throw "Build-CopilotAdvancedRuleJson: label entry missing Name or Guid."
         }
-        # PR5/5a: escape Name + Guid before string-concatenating into JSON. Labels
+        # Escape Name and Guid before string-concatenating into JSON. Labels
         # named with quotes, backslashes, or control chars used to produce invalid
         # JSON that the IPPS engine rejected with a cryptic deserialiser error.
         $nameEsc = ConvertTo-PurviewJsonString -Value ([string]$l.Name)

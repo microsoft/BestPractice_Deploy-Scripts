@@ -1,0 +1,30 @@
+{
+  "displayName": "Block access for unknown or unsupported device platform",
+  "grantControls": {
+    "builtInControls": "block",
+    "operator": "OR"
+  },
+  "state": "enabled",
+  "conditions": {
+    "applications": {
+      "includeApplications": "All"
+    },
+    "clientAppTypes": "all",
+    "platforms": {
+      "excludePlatforms": [
+        "android",
+        "iOS",
+        "windows",
+        "macOS",
+        "linux",
+        "windowsPhone"
+      ],
+      "includePlatforms": "all"
+    },
+    "users": {
+      "includeGroups": [
+        "{ID}"
+      ]
+    }
+  }
+}

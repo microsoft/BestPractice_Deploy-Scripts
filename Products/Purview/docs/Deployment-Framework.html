@@ -373,13 +373,15 @@ const PHASES = [
       "Read what the baseline does and what's deliberately out of scope.",
       "Confirm licensing (Business Premium baseline; E5 / Purview Suite unlocks add-ons).",
       "Line up admin roles and required PowerShell modules.",
-      "Plan T-7 end-user comms and review the retention-delete risk."
+      "Plan T-7 end-user comms and review the retention-delete risk.",
+      "Review the offline Deployment Plan before authentication."
     ],
     method: [
       "Host: <b>PowerShell 7+</b> (<code>pwsh.exe</code>) — the script hard-fails on 5.1.",
       "PS 5.1 must still be present (SPO loads via <code>-UseWindowsPowerShell</code> bridge).",
       "Modules auto-detected; <code>-AutoInstallModules</code> installs silently.",
-      "Change-Management Playbook drives the pre-deploy checklist."
+      "Change-Management Playbook drives the pre-deploy checklist.",
+      "Deployment Plan HTML + JSON records config intent, a sanitized intended-state snapshot, Good / Better / Best SMB guide mappings, a separate Microsoft Learn reference, and one short plan reference without reading tenant state. The snapshot uses the canonical Microsoft365Copilot token for the public Copilot destination, privacy-safe opaque digests for custom AI locations, records unsupported retention destinations separately, and rejects malformed built-in label signatures before sign-in. The JSON is a handoff artifact for a dependent tenant-validation feature that is not yet an available operator workflow."
     ],
     gate: [
       "Pilot in a <b>test tenant</b> first — production is never the rehearsal.",
@@ -550,7 +552,8 @@ const PHASES = [
       "Reports pinpoint exactly what to adjust if a control needs walking back."
     ],
     docs: [
-      { t: "End-User Adoption Guide", u: "end-user-adoption-guide/" }
+      { t: "End-User Adoption Guide", u: "end-user-adoption-guide/" },
+      { t: "Configuration Validation", u: "configuration-validation/" }
     ]
   }
 ];

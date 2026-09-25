@@ -55,3 +55,38 @@ file externally", the 30-day simulation window, Copilot behaviour, etc.).
 
 Use this one to **get the support team ready**; use Scenarios & Capabilities
 when you need the exhaustive technical reference.
+
+## Reports operators receive
+
+Before authentication, the toolkit writes a self-contained Deployment Plan HTML
+file and matching JSON sidecar. They summarize config intent, effective
+switches, fingerprints, and action mappings to the supplied Good, Better, and
+Best SMB guide. Microsoft Learn remains visible as a separate supporting
+reference. A short `PUR-...` reference identifies the generated pair, and the
+JSON carries a sanitized intended-state snapshot for a dependent stacked
+tenant-validation feature. The snapshot includes matching fields needed for
+later comparison but remains private customer-sensitive evidence. The plan
+does not inspect the tenant or claim compliance. It uses the canonical
+`Microsoft365Copilot` token for the public Copilot location and opaque digests
+for custom locations, records unsupported retention destinations separately,
+and fails local preflight when a non-empty built-in label signature is
+malformed.
+The Action Preview labels these as Deployment Priority Level values: Priority 1
+(Good), Priority 2 (Better), and Priority 3 (Best), and provides a closed
+explanation panel for the intent, priority, and comparison vocabulary.
+Good includes audit, baseline labels, container and SharePoint/OneDrive label
+enablement, and core DLP; Better adds Exchange retention; Best adds advanced
+DLP, auto-labeling, encryption, custom SITs, and DSPM. Unassigned capabilities
+are labeled as toolkit extensions.
+
+After deployment, a separate HTML and JSON report records the actions that
+actually ran, skipped, retried, or failed. `-NoDeploymentPlan` suppresses only
+the pre-connection plan. `-NoReport` suppresses only the end-of-run report.
+
+Later, `Test-PurviewTenantConfiguration.ps1` reads the tenant and can compare it with one
+Deployment Plan. It is a separate read-only command, it changes nothing, and it
+is not a compliance assessment. It also refuses a Graph token that contains
+resource permissions beyond its two documented read scopes; an approved
+fresh PowerShell sign-in is attempted first, and an isolated public client can
+be supplied when the shared Graph client still has broader consent. See
+[Configuration Validation](configuration-validation/).

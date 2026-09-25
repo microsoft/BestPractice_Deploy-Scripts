@@ -216,9 +216,8 @@
                     # access, needed for macros + simultaneous editing).
                     # `{TenantDomain}` resolves to all users in this
                     # tenant only (matches the global scope; excludes
-                    # external / B2B / MSA). See header comment above
-                    # and Skills/Purview/_CONVENTIONS.md for the full
-                    # semantics.
+                    # external / B2B / MSA). See the header comment above
+                    # for the tenant-scoping semantics.
                     #
                     # NOTE: granting OBJMODEL is NECESSARY BUT NOT
                     # SUFFICIENT for Office multi-user co-authoring on
@@ -367,12 +366,12 @@
     #   * 'Exchange'              - mailboxes
     #   * 'SharePointOneDrive'    - SPO sites + OneDrive for Business
     #
-    # E5 / Purview Suite ONLY (rejected when Deploy-PurviewBestPractice.ps1 is
-    # run with -BPOnly):
-    #   * 'Endpoint' / 'Devices'  - Endpoint DLP
-    #   * 'OnPremisesScanner'     - on-prem file shares & SP servers
-    #   * 'DefenderForCloudApps'  - 3rd party apps via MCAS
-    #   * 'PowerBI'               - Power BI tenants
+    # E5 / Purview Suite:
+    #   * 'Endpoint'              - Endpoint DLP
+    #
+    # Setup-DLP does not currently implement Devices aliases, on-premises,
+    # Defender for Cloud Apps, or Power BI rule shapes. Entries with unsupported
+    # workload values are skipped with structured evidence.
     DlpPolicies = @(
         @{
             Name        = 'SMBTool - DLP - Confidential and HC external (EXO)'

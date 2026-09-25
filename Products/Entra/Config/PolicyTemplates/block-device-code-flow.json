@@ -1,0 +1,11 @@
+{
+  "displayName": "Block device code flow",
+  "state": "enabledForReportingButNotEnforced",
+  "conditions": {
+    "applications": { "includeApplications": ["All"] },
+    "clientAppTypes": ["all"],
+    "authenticationFlows": { "transferMethods": "deviceCodeFlow" },
+    "users": { "includeGroups": ["{ID}"] }
+  },
+  "grantControls": { "operator": "OR", "builtInControls": ["block"] }
+}

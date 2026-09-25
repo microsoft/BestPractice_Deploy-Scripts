@@ -34,7 +34,7 @@
     Origin: extracted from Setup-TenantSettings.ps1 where this pattern was
     first proven, and promoted into a shared module so Labels, DLP,
     Retention, and AI Governance can use the same backoff and signature
-    set. (Jim's PR4 feedback.)
+    set.
 
     Usage:
         . (Join-Path $PSScriptRoot 'Invoke-WithTransientRetry.ps1')
@@ -72,12 +72,15 @@ function Test-TransientServerError {
     [OutputType([bool])]
     param([Parameter(Mandatory)] $ErrorRecord)
 
+    # Property access is guarded because ErrorRecord fields are frequently
+    # null, and a caller running under Set-StrictMode would otherwise fail
+    # inside the retry handler rather than surfacing the original error.
     $blob = @(
         $ErrorRecord.Exception.Message,
-        $ErrorRecord.ErrorDetails.Message,
-        $ErrorRecord.CategoryInfo.Reason,
+        $(if ($ErrorRecord.ErrorDetails) { $ErrorRecord.ErrorDetails.Message }),
+        $(if ($ErrorRecord.CategoryInfo) { $ErrorRecord.CategoryInfo.Reason }),
         $ErrorRecord.FullyQualifiedErrorId,
-        $ErrorRecord.Exception.GetType().FullName
+        $(if ($ErrorRecord.Exception) { $ErrorRecord.Exception.GetType().FullName })
     ) -join ' '
 
     if ([string]::IsNullOrWhiteSpace($blob)) { return $false }
@@ -138,7 +141,7 @@ function Test-AlreadyExistsError {
 
     $blob = @(
         $ErrorRecord.Exception.Message,
-        $ErrorRecord.ErrorDetails.Message,
+        $(if ($ErrorRecord.ErrorDetails) { $ErrorRecord.ErrorDetails.Message }),
         $ErrorRecord.FullyQualifiedErrorId
     ) -join ' '
 

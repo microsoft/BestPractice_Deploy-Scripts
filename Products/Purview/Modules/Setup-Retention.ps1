@@ -35,6 +35,7 @@ $ConfirmPreference   = 'None'
 
 # Shared retry helper for transient IPPS errors (502, 503, 504, 429, timeouts).
 . (Join-Path $PSScriptRoot 'Invoke-WithTransientRetry.ps1')
+. (Join-Path $PSScriptRoot 'PurviewConfigurationContract.ps1')
 
 # Extract a meaningful error message from an IPPS ErrorRecord. IPPS REST cmdlets
 # sometimes leave Exception.Message empty and only populate ErrorDetails or
@@ -56,6 +57,26 @@ function Format-IPPSError {
 }
 $tag = $Config.ManagedByTag
 $r = $Config.Retention
+$retentionLocations = Get-PurviewRetentionLocationClassification -Value $r.Locations
+foreach ($unsupportedLocation in @($retentionLocations.UnsupportedEvidence)) {
+    Write-Warning "Unsupported retention location '$unsupportedLocation' - skipping."
+    if (Get-Command -Name 'Add-RunLogEntry' -ErrorAction SilentlyContinue) {
+        Add-RunLogEntry -Module 'Setup-Retention' -Action 'Validate retention location' `
+            -Target $unsupportedLocation -Status 'Skipped' `
+            -Detail 'The location is not supported by Setup-Retention.ps1.'
+    }
+}
+if ($retentionLocations.Supported.Count -eq 0) {
+    $message = (
+        'Retention.Locations contains no supported destination. ' +
+        'Configure Exchange, SharePoint, or OneDrive before applying retention.'
+    )
+    if (Get-Command -Name 'Add-RunLogEntry' -ErrorAction SilentlyContinue) {
+        Add-RunLogEntry -Module 'Setup-Retention' -Action 'Validate retention locations' `
+            -Status 'Failed' -Detail $message
+    }
+    throw $message
+}
 
 function Test-Owned {
     param($Object, [string] $Tag)
@@ -92,12 +113,11 @@ $policyArgs = @{
     Name    = $r.Name
     Comment = "$tag $($r.Comment)"
 }
-foreach ($loc in $r.Locations) {
+foreach ($loc in $retentionLocations.Supported) {
     switch ($loc) {
         'Exchange'   { $policyArgs['ExchangeLocation']   = 'All' }
         'SharePoint' { $policyArgs['SharePointLocation'] = 'All' }
         'OneDrive'   { $policyArgs['OneDriveLocation']   = 'All' }
-        default      { Write-Warning "Unknown retention location '$loc' — skipping." }
     }
 }
 

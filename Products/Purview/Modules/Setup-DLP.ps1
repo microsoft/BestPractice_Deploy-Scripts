@@ -50,6 +50,9 @@ $ConfirmPreference   = 'None'
 
 # Shared retry helper for transient IPPS / Graph errors (502, 503, 504, 429, timeouts).
 . (Join-Path $PSScriptRoot 'Invoke-WithTransientRetry.ps1')
+. (Join-Path $PSScriptRoot 'PurviewConfigurationContract.ps1')
+
+Assert-PurviewLabelIdentityConfiguration -Config $Config
 
 # Extract a meaningful error message from an IPPS ErrorRecord. IPPS REST cmdlets
 # sometimes leave Exception.Message empty and only populate ErrorDetails or
@@ -249,6 +252,15 @@ function Resolve-LabelByPath {
 foreach ($cfg in $Config.DlpPolicies) {
     Write-Host "DLP policy: $($cfg.Name)" -ForegroundColor Cyan
 
+    $supportedWorkloads = @('Exchange', 'SharePointOneDrive', 'Endpoint')
+    if ([string]$cfg.Workload -notin $supportedWorkloads) {
+        Write-Warning "Skipping '$($cfg.Name)' because workload '$($cfg.Workload)' is not supported by Setup-DLP."
+        Add-RunLogEntry -Module 'Setup-DLP' -Action 'Validate DLP workload' `
+            -Target $cfg.Name -Status 'Skipped' `
+            -Detail "Unsupported workload '$($cfg.Workload)'. Supported workloads: Exchange, SharePointOneDrive, Endpoint."
+        continue
+    }
+
     # Purview enforces a 64-character maximum on policy/rule names. The IPPS
     # backend rejects longer names with an empty/cryptic error, so we
     # validate upfront to give partners a clear, actionable diagnostic.
@@ -267,6 +279,9 @@ foreach ($cfg in $Config.DlpPolicies) {
         # policies deploy normally and surfaces a single clear warning for the
         # workload(s) we can't create.
         Write-Warning "  Skipping DLP policy '$($cfg.Name)': workload '$($cfg.Workload)' requires Microsoft 365 E5 / Purview Suite, and -BPOnly is in effect (passed explicitly or auto-set by license detection). Remove this policy from PurviewConfig.psd1 to silence, or omit -BPOnly / -NoLicenseAutoDetect when the customer holds an E5 / Purview Suite SKU."
+        Add-RunLogEntry -Module 'Setup-DLP' -Action 'Validate DLP workload' `
+            -Target $cfg.Name -Status 'Skipped' `
+            -Detail "Workload '$($cfg.Workload)' requires Microsoft 365 E5 / Purview Suite and -BPOnly is in effect."
         continue
     }
 
@@ -302,14 +317,14 @@ foreach ($cfg in $Config.DlpPolicies) {
         # produces a rule that persists but NEVER matches (silent failure).
         # We therefore assert the resolved value is a real GUID before use, so
         # any future refactor that regresses to name-binding fails loudly.
-        # See Skills/Purview/Setup-DLP.skill.md "Label-binding guardrail".
+        # Match label operands by resolved GUID; never substitute display names.
         # -----------------------------------------------------------------
         $parsedGuid = [guid]::Empty
         if (-not [guid]::TryParse($g, [ref]$parsedGuid)) {
-            throw "DLP label-binding guardrail: LabelPath '$lp' resolved to '$g', which is not a GUID. A DLP rule must bind labels by their live tenant GUID (resolved from the label signature/Name/DisplayName), never by a friendly name. This is a code/config regression — see Skills/Purview/Setup-DLP.skill.md 'Label-binding guardrail'."
+            throw "DLP label-binding guardrail: LabelPath '$lp' resolved to '$g', which is not a GUID. A DLP rule must bind labels by their live tenant GUID (resolved from the label signature/Name/DisplayName), never by a friendly name. Check the label configuration and resolved tenant GUIDs before retrying."
         }
         if ($parsedGuid -eq [guid]::Empty -and -not $WhatIfPreference) {
-            throw "DLP label-binding guardrail: LabelPath '$lp' resolved to an empty GUID outside -WhatIf. Setup-SensitivityLabels.ps1 must create the label before the DLP module runs. See Skills/Purview/Setup-DLP.skill.md 'Label-binding guardrail'."
+            throw "DLP label-binding guardrail: LabelPath '$lp' resolved to an empty GUID outside -WhatIf. Setup-SensitivityLabels.ps1 must create the label before the DLP module runs. Verify label creation and GUID resolution before retrying."
         }
 
         $resolvedLabelGuids += $g
@@ -376,7 +391,7 @@ foreach ($cfg in $Config.DlpPolicies) {
             # if needed (not currently exposed in PurviewConfig).
             $policyArgs['EndpointDlpLocation'] = 'All'
         }
-        default { throw "Unknown DLP workload: $($cfg.Workload)" }
+        default { $skipPolicy = $true }
     }
 
     if ($skipPolicy) { continue }
@@ -450,7 +465,7 @@ foreach ($cfg in $Config.DlpPolicies) {
     # friendly name — the backend echoes the same GUID into an 'id' field on
     # persist, which is why a stored rule shows name==id==GUID. Do NOT "fix"
     # this to a human-readable name; that silently breaks enforcement.
-    # See Skills/Purview/Setup-DLP.skill.md "Label-binding guardrail".
+    # Match label operands by resolved GUID; never substitute display names.
     $labelMatches = @()
     foreach ($g in $resolvedLabelGuids) {
         $labelMatches += @{ name = $g; type = 'Sensitivity' }
@@ -486,7 +501,7 @@ foreach ($cfg in $Config.DlpPolicies) {
             # GUARDRAIL: Id is the live tenant GUID and is what enforcement keys
             # off. Name carries the label's internal Name for portal readability
             # only — never rely on it for matching. See the labels module and
-            # Skills/Purview/Setup-DLP.skill.md "Label-binding guardrail".
+            # preserve resolved GUID matching in this rule.
             $advLabels += [ordered]@{
                 Name = $lbl.Name
                 Id   = $lbl.Guid

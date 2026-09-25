@@ -1,0 +1,34 @@
+{
+  "displayName": "No persistent browser session",
+  "sessionControls": {
+    "signInFrequency": {
+      "frequencyInterval": "timeBased",
+      "value": 1,
+      "isEnabled": true,
+      "authenticationType": "primaryAndSecondaryAuthentication",
+      "type": "hours"
+    },
+    "persistentBrowser": {
+      "mode": "never",
+      "isEnabled": true
+    }
+  },
+  "state": "enabled",
+  "conditions": {
+    "devices": {
+      "deviceFilter": {
+        "mode": "include",
+        "rule": "device.trustType -ne \"ServerAD\" -or device.isCompliant -ne True"
+      }
+    },
+    "applications": {
+      "includeApplications": "All"
+    },
+    "clientAppTypes": "all",
+    "users": {
+      "includeGroups": [
+        "{ID}"
+      ]
+    }
+  }
+}

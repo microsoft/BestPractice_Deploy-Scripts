@@ -1,0 +1,28 @@
+{
+  "displayName": "Require app protection policy",
+  "grantControls": {
+    "builtInControls": [
+      "compliantApplication"
+    ],
+    "operator": "OR"
+  },
+  "state": "enabledForReportingButNotEnforced",
+  "conditions": {
+    "applications": {
+      "includeApplications": "All"
+    },
+    "clientAppTypes": "all",
+    "platforms": {
+      "excludePlatforms": [],
+      "includePlatforms": [
+        "android",
+        "iOS"
+      ]
+    },
+    "users": {
+      "includeGroups": [
+        "{ID}"
+      ]
+    }
+  }
+}

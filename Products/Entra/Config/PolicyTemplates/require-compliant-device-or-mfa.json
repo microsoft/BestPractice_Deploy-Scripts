@@ -1,0 +1,24 @@
+{
+  "displayName": "Require compliant or Microsoft Entra hybrid joined device or multifactor authentication for all users",
+  "grantControls": {
+    "builtInControls": [
+      "compliantDevice",
+      "domainJoinedDevice",
+      "mfa"
+    ],
+    "operator": "OR"
+  },
+  "state": "enabled",
+  "conditions": {
+    "applications": {
+      "includeApplications": "All"
+    },
+    "clientAppTypes": "all",
+    "users": {
+      "excludeRoles": "d29b2b05-8046-44ba-8758-1e26182fcf32",
+      "includeGroups": [
+        "{ID}"
+      ]
+    }
+  }
+}

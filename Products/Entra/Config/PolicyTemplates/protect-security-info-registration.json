@@ -1,0 +1,13 @@
+{
+  "displayName": "Protect security information registration",
+  "state": "enabledForReportingButNotEnforced",
+  "conditions": {
+    "applications": { "includeUserActions": ["urn:user:registersecurityinfo"] },
+    "clientAppTypes": ["all"],
+    "users": {
+      "includeGroups": ["{ID}"],
+      "excludeUsers": ["GuestsOrExternalUsers"]
+    }
+  },
+  "grantControls": { "operator": "OR", "builtInControls": ["mfa"] }
+}

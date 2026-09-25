@@ -102,7 +102,7 @@ baseline. Some optional features require a higher SKU:
 | Container scope on the 4 published labels (`Site`, `UnifiedGroup` on `General \ Anyone (unrestricted)` / `Confidential\All Employees` / `Highly Confidential\All Employees`) | Business Premium (AAD P1+) | Default on; gated by the same `-SkipContainerLabels` switch. When stripped, the labels still ship with `File, Email` scope (no failure). Adoption uses UNION-not-replace so a customer-added scope is never lost. |
 | Premium Audit (1-year retention, `SearchQueryInitiated`)  | E5 / Audit (Premium) add-on           | Opt-in via `-EnablePremiumAudit`       |
 | Endpoint DLP (Devices)                                    | E5 / Purview Suite                    | **In the default config; auto-created in simulation** when license auto-detect finds an E5 / Purview Suite SKU. Soft-skipped on Business Premium and under `-BPOnly` (the Exchange + SPO/ODB policies still deploy). |
-| DLP for Defender for Cloud Apps / on-prem / Power BI      | E5 / Purview Suite                    | Not configured by default; rejected by `-BPOnly` |
+| DLP for Defender for Cloud Apps / on-prem / Power BI      | E5 / Purview Suite                    | **Not implemented.** Config entries are skipped with structured evidence; adding configuration or upgrading licensing does not enable these workloads. |
 
 **Pass `-BPOnly`** to hard-block any E5-only opt-ins. The script refuses to
 run if `-EnablePremiumAudit` is set, and the DLP module rejects custom
@@ -397,14 +397,22 @@ re-run the deploy.
 ```
 Configuration/Purview/
 ├── Deploy-PurviewBestPractice.ps1         <- master orchestrator (start here)
+├── Test-PurviewTenantConfiguration.ps1    <- standalone read-only validation
 ├── Config/
 │   └── PurviewConfig.psd1                 <- all label / DLP / retention names & values
+├── References/
+│   ├── DataSecuritySmbGuideMapping.psd1    <- primary Good / Better / Best mapping
+│   └── MicrosoftLearnLightweightDlpMapping.psd1 <- supporting Learn mapping
 ├── Modules/
 │   ├── Connect-PurviewServices.ps1        <- service connection helper
+│   ├── Connect-PurviewValidationServices.ps1  <- read-only connection profile
 │   ├── Setup-TenantSettings.ps1           <- task 1
 │   ├── Setup-SensitivityLabels.ps1        <- task 2
 │   ├── Setup-DLP.ps1                      <- task 3
-│   └── Setup-Retention.ps1                <- task 4
+│   ├── Setup-Retention.ps1                <- task 4
+│   ├── Setup-AIGovernance.ps1             <- task 5
+│   ├── Write-PurviewDeploymentPlan.ps1    <- pre-connection HTML + JSON plan
+│   └── Write-PurviewHtmlReport.ps1        <- end-of-run HTML + JSON evidence
 └── README.md
 ```
 
@@ -483,6 +491,142 @@ The most common customisations:
 
 > **Don't change** the `ManagedByTag` after a deployment — it's how the
 > toolkit recognises objects it owns on subsequent runs.
+>
+> A non-empty `BuiltInName` must match Microsoft's
+> `defa4170-0d19-0005-NNNN-bc88714345d2` signature. Invalid values stop local
+> preflight before the Deployment Plan or sign-in so deployment and reporting
+> cannot describe different label identities.
+
+---
+
+## Run output: Deployment Plan, HTML report, and JSON sidecars
+
+Before authentication, the toolkit writes an offline Deployment Plan from the
+validated config and effective switches. It includes a module summary, an
+action preview, SHA-256 fingerprints, and a comparison to the supplied Data
+Security Deployment Guide for Small Business. Recommendations are grouped by
+the minimum Deployment Priority Level where they appear: Priority 1 (Good),
+Priority 2 (Better), or Priority 3 (Best). A closed **How to read the Action
+Preview** panel defines intent, priority, and comparison statuses. A separate
+appendix keeps the pinned Microsoft Learn Lightweight guide visible as a
+supporting reference. The plan describes intent only. It does not inspect
+tenant state, predict create or update outcomes, or declare compliance.
+
+The supplied guide places audit logging, labels, container and SharePoint/
+OneDrive label enablement, and core DLP in Good; Exchange retention in Better;
+and Endpoint, Teams, and Copilot DLP, auto-labeling, encryption, custom
+sensitive information types, and DSPM in Best. Other toolkit capabilities are
+shown as extensions rather than attributed to a guide level.
+
+Schema 1.2 adds a sanitized intended-state snapshot to both artifacts. It
+records the effective tenant settings, stable label signatures, and policy
+settings needed for later comparison. It includes the managed-object tag,
+publication mode, encryption lifetime, and privacy-safe one-way digests for
+custom principals. The public Microsoft 365 Copilot destination is represented
+by the canonical `Microsoft365Copilot` token. Custom or unknown locations keep
+only a redacted display value, location class, and deterministic one-way digest
+so distinct targets remain distinguishable without exposing them.
+Retention records contain only supported destinations and separately identify
+unsupported values. An unsupported-only retention configuration is excluded
+instead of appearing ready to deploy. The managed-object tag is a separate
+top-level schema field and participates in the plan-input fingerprint. The plan
+remains private customer-sensitive evidence:
+configured policy and label names needed for matching can appear. It excludes
+tenant identity, live object GUIDs in free text, Premium Audit mailbox UPNs,
+resolved tenant domains, credentials, secrets, and local paths.
+
+The default files are
+`Deploy-PurviewBestPractice-Plan-PUR-<timestamp>-<id>.html` and the adjacent
+`.json` sidecar. The short `PUR-...` reference identifies one generated pair.
+The deterministic plan-input SHA-256 identifies equivalent effective intent
+across generations. Use `-DeploymentPlanPath` to choose the HTML path, or
+`-NoDeploymentPlan` to suppress both files. Plan generation is best effort: a
+local rendering or file-write failure warns, records run-log evidence, and lets
+the deployment continue.
+
+`-DeploymentPlanPath` must end in `.html` or `.htm`; the adjacent JSON sidecar
+uses the same basename. Keep the sidecar with the HTML. The read-only
+validator accepts the JSON sidecar through `-PlanPath`; see
+[Post-deployment configuration validation](#post-deployment-configuration-validation)
+for the supported schema, permissions, and limitations.
+
+After the run, the toolkit writes a separate HTML deployment report and
+machine-readable JSON sidecar. These record each action with its status, target,
+retry attempts, and the reason for anything skipped. Suppress the end-of-run
+artifacts with `-NoReport`, or choose the HTML location with `-ReportPath`.
+
+**A `-WhatIf` run produces the report too.** That is the point: the dry run is
+how you review what the toolkit intends to change before it changes anything.
+The report is local evidence, not a tenant change, so it is written regardless
+of `-WhatIf`.
+
+The end-of-run reports contain tenant evidence. Keep them in the approved
+private evidence location and do not commit or publish them. The Deployment
+Plan excludes tenant identity, but its configuration intent may still be
+customer-sensitive and should use the same private storage practice.
+
+---
+
+## Post-deployment configuration validation
+
+`Test-PurviewTenantConfiguration.ps1` is a separate, read-only command. With
+`-PlanPath`, it validates a schema 1.2 artifact and compares live observations
+with its `IntendedState`. Without a plan, it assesses the pinned Good, Better,
+and Best guide controls without loading default configuration intent. It makes
+no changes and has no repair switch.
+
+```powershell
+cd Products/Purview
+
+.\Test-PurviewTenantConfiguration.ps1 `
+    -PlanPath .\Deploy-PurviewBestPractice-Plan-PUR-20260814-091500-1234ABCD.json `
+    -TenantAdminUpn admin@contoso.onmicrosoft.com
+```
+
+Omit `-PlanPath` for guide-only assessment. Each result keeps three separate
+axes: observation (`Present`, `Absent`, `Unreadable`, `Unsupported`), intended
+state (`Match`, `Mismatch`, `NotInPlan`, `NotEvaluated`), and guide baseline
+(`Meets`, `DoesNotMeet`, `Indeterminate`, `NotApplicable`). The report calculates
+cumulative proven and provisional levels and lists each blocker. Only
+plan-matched or toolkit-managed objects are named. Other objects are counted
+and anonymized.
+
+Exit codes are a bitmask: `0` clean, `2` drift, `4` collection failure, `6`
+both, and `1` for a fatal input, schema, tenant-identity, or connection
+failure.
+
+Plan comparison requires a **schema 1.2 or later** artifact. The validator
+checks the artifact type, plan reference, schema, and both SHA-256 fingerprints
+before authentication.
+
+Validation uses its own least-privilege read-only connection profile. It
+requests only `Organization.Read.All` and `GroupSettings.Read.All`, and
+deliberately does not request the deployment profile's write scopes. License
+gates remain provisional unless workload reads prove support. The validator
+also inspects the effective Graph context and fails before tenant collection if
+the token contains any other Graph resource permission. On a workstation where
+an existing context has broader consent, close that PowerShell process, start a
+fresh `pwsh -NoProfile` session, and rerun so the validator can request a new
+token. The new token is checked again. If the shared Microsoft Graph PowerShell
+client still returns broader permissions, use an approved tenant-local public
+client with only those two delegated permissions:
+
+```powershell
+.\Test-PurviewTenantConfiguration.ps1 `
+    -TenantAdminUpn admin@contoso.onmicrosoft.com `
+    -ClientId '<approved-public-client-app-id>' `
+    -UseDeviceAuthentication
+```
+
+The script does not create an app registration or grant consent.
+
+Pilot validation against a live tenant has not been performed for this release.
+The deterministic fixtures prove the toolkit's own logic, not Microsoft
+supportability. See
+[docs/Tenant-Validation-Report.md](docs/Tenant-Validation-Report.md) for module
+requirements, run commands, output locations, and troubleshooting. See
+[docs/Configuration-Validation.md](docs/Configuration-Validation.md) for the
+full operator guide.
 
 ---
 
