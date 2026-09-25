@@ -352,6 +352,17 @@ steps, and rerun with the same effective parameters to confirm idempotency. Do n
 reports or include customer identifiers, exports, credentials, or approval
 artifacts in source control.
 
+For compliance and enrollment restrictions, `Verified` requires managed
+settings and the exact assignment to match, including on an idempotent rerun.
+Compliance verification also reads scheduled-action children. Missing reads,
+additional targets or drift block continuation; the create-only writer does
+not repair existing objects. Enrollment inventory and readback use the same
+beta API as the single-platform writer and distinguish legacy multi-platform
+objects. Review beta compatibility in the approved pilot.
+
+Existing managed app-protection policies remain unchanged and require portal
+review. Their inventory is `GuidedOnly`, not verified compliance.
+
 Verify the five automated assessments in the portal without changing them:
 
 | Assessment | Current portal route |

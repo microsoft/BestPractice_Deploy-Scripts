@@ -68,6 +68,20 @@ landed but not yet been tagged in a release appear under **Unreleased**.
 
 ### Fixed
 
+- [Defender] Report a module as `FAILED` when any operation or readback fails,
+  even if other entries are blocked.
+- [Entra] Correct role and Azure-management targeting and include the MFA
+  alternative in the device-or-MFA policy. Verify managed session controls and
+  device filters during readback. Existing corrected policies require manual
+  review rather than automatic adoption; new policies remain report-only by
+  default.
+- [Intune] Treat exclusion-only assignments as unknown scope. Verify managed
+  compliance and enrollment settings and their assignments instead of accepting
+  a matching display name as proof of deployment. Keep enrollment inventory
+  and write payloads aligned with their documented Graph API versions.
+  Existing app-protection policies remain unchanged and are reported as
+  requiring review rather than verified compliance.
+
 - **[Entra, Intune] Report incomplete work accurately.** Modules that never
   start after an earlier failure now carry explicit skipped/blocked evidence,
   rather than appearing successful from configuration messages alone.

@@ -61,7 +61,7 @@ guarantee against lockout or a replacement for existing enforcing protection.
 | Block access from unknown/unsupported device platforms | Denies platforms you have not chosen to support, shrinking the attack surface. |
 | No persistent browser session | Prevents indefinitely "stay signed in" sessions on unmanaged browsers. |
 | Require app protection policy | Uses `compliantApplication` for Android/iOS. Requires compatible applications and assigned Intune app-protection policies; the Entra template does not deploy those policies. |
-| Require compliant/hybrid device or MFA | Prefers a managed, compliant device and falls back to MFA otherwise. |
+| Require compliant/hybrid device or MFA | Accepts a compliant device, a hybrid-joined device, or MFA. The OR controls do not require a managed device when MFA is satisfied. |
 | Block device code flow | Evaluates blocking device-code authentication for the pilot group. Inventory legitimate devices/tools and review report-only results before enforcing. |
 | Protect security information registration | Requires MFA for member registration in the pilot group. Combined registration and an initial authentication method or Temporary Access Pass must be ready; guests/external users are excluded. |
 
@@ -80,6 +80,15 @@ scope. Multiple matching policies block the run.
 The new device-code and registration policies also require manual review when
 already present, even with `-AdoptExisting`. They do not change customer
 exceptions or automatically migrate existing policies.
+
+Admin MFA and admin-portal MFA target the configured directory roles, not
+pilot-group membership. Azure-management MFA targets all users for that
+application. The pilot group therefore does not limit every policy's scope.
+Existing admin, admin-portal, Azure-management, device-or-MFA and
+browser-session matches are review-only as well, even with `-AdoptExisting`.
+Review the corrected scope, MFA alternative or session settings before
+manually migrating an existing policy. New-policy readback checks those
+managed controls and fails on missing settings.
 
 ### Optional P1 hardening and P2 extensions
 

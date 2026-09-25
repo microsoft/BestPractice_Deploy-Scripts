@@ -236,8 +236,11 @@ the task 4 read. It is recorded as informational `WriteRiskGate` evidence and
 a `WriteBlockedItemKeys` entry, separate from the assessment result.
 
 **Guide task 5, device enrollment restriction inventory.**
-`Setup-EnrollmentRestrictions.ps1` reads the GA platform-restriction
-configuration collection and each configuration's assignment collection. It
+`Setup-EnrollmentRestrictions.ps1` uses the configured Graph beta endpoint for
+inventory, writes and readback. It recognizes both single-platform
+`deviceEnrollmentPlatformRestrictionConfiguration` objects and legacy
+multi-platform `deviceEnrollmentPlatformRestrictionsConfiguration` objects,
+using each type's own settings shape and assignment collection. It
 reports only normalized configuration count, assignment scope, platform-blocked
 signals, and personal-enrollment-blocked signals. It ignores the unrelated
 device enrollment limit resource and does not retain policy or group
@@ -250,6 +253,14 @@ desired platform baseline. With
 module creates the configured iOS/iPadOS and Android personal-enrollment
 restrictions, assigns them to the selected scope, and reads them back. The
 required read permission is `DeviceManagementServiceConfig.Read.All`.
+
+Post-write verification checks the discriminator, platform, managed settings,
+ownership marker and exact assignment target. Reruns verify those same fields
+before reporting `AlreadyCompliant`; a name match is not enough. Extra targets,
+filters, exclusions, duplicate managed names or changed settings stop the
+create-only writer rather than triggering an automatic repair. An assignment
+collection containing only exclusions is reported as `Unknown`, not `PilotOnly`.
+The beta API remains subject to change and needs approved pilot validation.
 
 Withholding `-IncludeHighRisk` or `-EnableEnrollmentRestrictions` does not block
 the inventory. Missing write authorization is recorded separately as
@@ -275,6 +286,11 @@ policy by default. The current create-only path does not update or merge an
 existing app-protection policy. Modern Windows MAM remains outside this write
 path.
 
+An existing managed app-protection policy is reported as `GuidedOnly` with
+`Readback=NotAttempted`, not verified compliance. Review its settings, targeted
+apps and assignment in Intune. An unmanaged same-name policy still blocks
+creation rather than being adopted or duplicated.
+
 Renamed toolkit-managed app-protection and Microsoft 365 Apps objects are left
 unchanged. Renamed managed compliance or enrollment objects block further
 creation until their recorded IDs and configured names are reconciled.
@@ -293,6 +309,13 @@ retaining policy names, IDs, settings, groups, rules, or raw responses. Android
 Device Owner and AOSP policy types remain guided because their v1.0
 documentation links fall back to beta. The required read permission is
 `DeviceManagementConfiguration.Read.All`.
+
+Creation and managed-policy reruns require verified payload fields, scheduled
+actions and their child configurations, and the exact assignment target.
+Scheduled action children are read separately from their documented endpoint.
+Unavailable child reads block verification and expansion; the inventory-only
+fallback described above does not turn an unverified write into success.
+Existing policies are not automatically repaired or overwritten.
 
 The task 7 evidence also reports the seven candidate compliance payloads in
 the imported catalog: three Baseline, three Advanced, and one Windows. The
@@ -387,7 +410,7 @@ approval reference when one was supplied, are recorded as evidence.
 - An administrator with the appropriate roles for device management and, for
   task 10, Conditional Access.
 - Delegated consent for the full configured Graph permission set in
-  `Config\IntuneConfig.psd1`'s `Api.GraphScopes`: six read scopes --
+  `Config\IntuneConfig.psd1`'s `Api.GraphScopes`: six read scopes:
   `User.Read`, `LicenseAssignment.Read.All`,
   `DeviceManagementConfiguration.Read.All`, `DeviceManagementApps.Read.All`,
   `DeviceManagementServiceConfig.Read.All`, and `Policy.Read.All` -- plus

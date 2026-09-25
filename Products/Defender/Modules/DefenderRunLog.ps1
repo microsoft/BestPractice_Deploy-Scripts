@@ -208,12 +208,12 @@ function Get-DefenderModuleVerdict {
 
     $items = @($Entries)
     if (@($items | Where-Object {
-        (Get-DefenderEntryField -Entry $_ -Name 'Disposition') -eq 'Blocked'
-    }).Count -gt 0) { return 'BLOCKED' }
-    if (@($items | Where-Object {
         (Get-DefenderEntryField -Entry $_ -Name 'Status') -eq 'Failed' -or
         (Get-DefenderEntryField -Entry $_ -Name 'Readback') -eq 'Failed'
     }).Count -gt 0) { return 'FAILED' }
+    if (@($items | Where-Object {
+        (Get-DefenderEntryField -Entry $_ -Name 'Disposition') -eq 'Blocked'
+    }).Count -gt 0) { return 'BLOCKED' }
     if (@($items | Where-Object {
         (Get-DefenderEntryField -Entry $_ -Name 'Status') -eq 'Skipped' -or
         (Get-DefenderEntryField -Entry $_ -Name 'Disposition') -eq 'GuidedOnly'

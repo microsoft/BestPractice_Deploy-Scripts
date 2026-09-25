@@ -138,6 +138,17 @@ function Test-EntraPolicyCompliant {
             ((Get-EntraNormalizedSet (Get-EntraPolicyProperty $existingLocations $field)) -join ',')) { return $false }
     }
 
+    $desiredSession = Get-EntraPolicyProperty $Desired 'sessionControls'
+    if ($null -ne $desiredSession -and -not (Test-EntraManagedPropertiesMatch `
+            -Expected $desiredSession -Actual (Get-EntraPolicyProperty $Existing 'sessionControls'))) {
+        return $false
+    }
+    $desiredDevices = Get-EntraPolicyProperty $dc 'devices'
+    if ($null -ne $desiredDevices -and -not (Test-EntraManagedPropertiesMatch `
+            -Expected $desiredDevices -Actual (Get-EntraPolicyProperty $ec 'devices'))) {
+        return $false
+    }
+
     if (-not (Test-EntraBreakGlassExcluded -Policy $Existing `
                 -BreakGlassUsers $BreakGlassUsers -BreakGlassGroups $BreakGlassGroups)) {
         return $false
@@ -147,7 +158,7 @@ function Test-EntraPolicyCompliant {
 }
 
 # When adopting an existing same-named policy, change only what this tool
-# manages — ensure the required grant controls and the break-glass exclusion —
+# manages: ensure the required grant controls and the break-glass exclusion,
 # and preserve every other tenant-specific setting by starting from the existing
 # policy. Only grantControls and conditions are returned, so a PATCH leaves
 # state, session controls, and display name untouched.
@@ -158,6 +169,10 @@ function Get-EntraAdoptBody {
         [string[]] $BreakGlassUsers = @(),
         [string[]] $BreakGlassGroups = @()
     )
+
+    if ($Desired.grantControls.authenticationStrength -or $Desired.sessionControls) {
+        throw 'Authentication-strength and session-control policies require manual review; automatic adoption is not supported.'
+    }
 
     # Deep copy so the customer's existing complex objects are preserved intact.
     $work = ($Existing | ConvertTo-Json -Depth 30) | ConvertFrom-Json -AsHashtable
@@ -322,7 +337,7 @@ foreach ($policyRef in @($ca.Policies)) {
         Add-EntraRunLogEntry -Module $module -Action 'Create' -BestPracticeKey $bestPracticeKey `
             -Status 'Skipped' -Disposition 'GuidedOnly' -Target $displayName `
             -Readback $(if ($comparedControlsMatch) { 'NotAttempted' } else { 'Mismatch' }) `
-            -Detail "$comparisonDetail This existing policy requires manual review of grants, authentication strength/flow, user actions, targeting, prerequisites and emergency access. It was not changed or duplicated, including with AdoptExisting."
+            -Detail "$comparisonDetail This existing policy requires manual review of grants, authentication strength/flow, session controls, user actions, targeting, prerequisites and emergency access. It was not changed or duplicated, including with AdoptExisting."
         continue
     }
 
@@ -450,18 +465,15 @@ foreach ($policyRef in @($ca.Policies)) {
             -Detail "Read-back confirmed the required grant controls and break-glass exclusion; other settings preserved (state='$($verify.state)')."
     }
     else {
-        if ($verify.state -ne $state -or
-            ($reviewExistingOnly -and -not (Test-EntraPolicyCompliant -Desired $policy -Existing $verify `
-                -BreakGlassUsers $breakGlassUsers -BreakGlassGroups $breakGlassGroups))) {
+        if ($verify.state -ne $state -or -not (Test-EntraPolicyCompliant -Desired $policy -Existing $verify `
+                -BreakGlassUsers $breakGlassUsers -BreakGlassGroups $breakGlassGroups)) {
             Add-EntraRunLogEntry -Module $module -Action 'Readback' -BestPracticeKey $bestPracticeKey `
                 -Status 'Failed' -Disposition 'Blocked' -Target $displayName -Readback 'Mismatch' `
-                -Detail "Read-back did not confirm the expected state='$state' or the required grant, authentication strength/flow, user action, targeting, platforms and emergency-access exclusions. Stopping so the discrepancy can be reviewed."
+                -Detail "Read-back did not confirm the expected state='$state' or the required grant, session controls, device filter, authentication strength/flow, user action, targeting, platforms and emergency-access exclusions. Stopping so the discrepancy can be reviewed."
             throw "Conditional Access policy '$displayName' could not be confirmed after write (state='$($verify.state)')."
         }
         Add-EntraRunLogEntry -Module $module -Action 'Readback' -BestPracticeKey $bestPracticeKey `
             -Status 'Info' -Disposition 'Applicable' -Target $displayName -Readback 'Verified' `
-            -Detail $(if ($reviewExistingOnly) {
-                "Read-back confirmed state='$($verify.state)' and the compared grants, authentication strength/flow, user action, targeting, platforms and emergency-access exclusions."
-            } else { "Read-back confirmed state='$($verify.state)'." })
+            -Detail "Read-back confirmed state='$($verify.state)' and the compared grants, session controls, device filter, authentication strength/flow, user action, targeting, platforms and emergency-access exclusions."
     }
 }

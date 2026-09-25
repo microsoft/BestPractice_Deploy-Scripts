@@ -3,7 +3,8 @@
   "grantControls": {
     "builtInControls": [
       "compliantDevice",
-      "domainJoinedDevice"
+      "domainJoinedDevice",
+      "mfa"
     ],
     "operator": "OR"
   },

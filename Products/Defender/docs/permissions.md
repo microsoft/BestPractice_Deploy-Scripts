@@ -11,6 +11,14 @@ Graph tenant identity. API and workload capability checks, plus licensing
 documentation links, are recorded in the structured run log. The toolkit does
 not infer entitlement from SKU or service-plan names.
 
+Tenant identity requests only `id` and `verifiedDomains` from `/organization`.
+Delegated `User.Read` permits both fields, so this operation does not require
+broader organization-read consent. Application access has a separate permission
+requirement, `Organization.Read.All`, and remains subject to the product's
+app-only gate. See [List organizations](https://learn.microsoft.com/graph/api/organization-list?view=graph-rest-1.0)
+(checked September 25, 2026). Missing fields or a tenant mismatch still stop
+the run before deployment.
+
 Delegated Graph sign-in may use browser authentication or device code flow.
 Both paths issue delegated tokens and require the same operator consent and
 tenant authorization. Device code flow is an authentication fallback; it does

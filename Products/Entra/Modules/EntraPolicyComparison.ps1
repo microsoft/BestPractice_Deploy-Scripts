@@ -40,6 +40,27 @@ function Get-EntraPolicyProperty {
     return $property.Value
 }
 
+function Test-EntraManagedPropertiesMatch {
+    param([AllowNull()] $Expected, [AllowNull()] $Actual)
+
+    if ($null -eq $Expected) { return $null -eq $Actual }
+    if ($null -eq $Actual) { return $false }
+    if ($Expected -is [System.Collections.IDictionary]) {
+        foreach ($key in $Expected.Keys) {
+            if (-not (Test-EntraManagedPropertiesMatch -Expected $Expected[$key] `
+                    -Actual (Get-EntraPolicyProperty $Actual $key))) { return $false }
+        }
+        return $true
+    }
+    if ($Expected -is [bool]) {
+        return $Actual -is [bool] -and $Expected -eq $Actual
+    }
+    if ($Expected -is [string]) {
+        return $Actual -is [string] -and $Expected -ceq $Actual
+    }
+    return ($Expected | ConvertTo-Json -Compress) -ceq ($Actual | ConvertTo-Json -Compress)
+}
+
 function Get-EntraNormalizedSet {
     <#
         Order-independent, duplicate-free, string-typed view of a Graph
@@ -126,10 +147,13 @@ function Assert-EntraPolicyMigrationConfig {
             -not $reference.ContainsKey('Enabled')) {
             throw 'The hardened admin policy requires an explicit Boolean Enabled opt-in.'
         }
-        if ($reference.Key -in @('block-device-code-flow', 'protect-security-info-registration', 'require-phishing-resistant-mfa-admins')) {
+        if ($reference.Key -in @(
+                'block-device-code-flow', 'protect-security-info-registration', 'require-phishing-resistant-mfa-admins',
+                'no-persistent-browser-session', 'require-mfa-admins', 'require-mfa-admin-portals',
+                'require-mfa-azure-management', 'require-compliant-device-or-mfa')) {
             $reviewOnly = Get-EntraPolicyProperty $reference 'ReviewExistingOnly'
             if ($reviewOnly -isnot [bool] -or -not $reviewOnly) {
-                throw "Policy '$($reference.Key)' requires ReviewExistingOnly=true. Existing authentication-flow, registration and strength policies must be reviewed rather than automatically migrated."
+                throw "Policy '$($reference.Key)' requires ReviewExistingOnly=true. Existing targeting, grant, session, authentication-flow, registration and strength changes must be reviewed rather than automatically migrated."
             }
         }
         if ($reference.Key -ne 'require-approved-client-apps') { continue }

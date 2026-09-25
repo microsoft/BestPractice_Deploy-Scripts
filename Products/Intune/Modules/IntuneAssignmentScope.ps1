@@ -67,7 +67,7 @@ function Get-IntuneAssignmentScopeResult {
         whole collection Unknown, which is what a caller that does not model
         exclusions should do so it never overstates how narrow the targeting is.
         'Count' records the exclusions in ExclusionCount and lets the rest of the
-        collection decide the scope.
+        collection decide the scope. Exclusions alone have Unknown scope.
 
     .PARAMETER MissingTargetMessage
         Message thrown when an assignment carries no target. Callers supply
@@ -172,6 +172,7 @@ function Get-IntuneAssignmentScopeResult {
     $scope =
         if ($hasBroad) { 'Broad' }
         elseif ($hasUnknown) { 'Unknown' }
+        elseif ($groupIds.Count -eq 0) { 'Unknown' }
         elseif ([string]::IsNullOrWhiteSpace($PilotGroupId)) { 'Broad' }
         elseif (@($groupIds | Where-Object {
                     -not [string]::Equals(

@@ -443,8 +443,8 @@ foreach ($platform in $platforms) {
     if ($state -and $state.ToolkitManagedPolicyCount -eq 1) {
         Add-IntuneRunLogEntry -Module 'Setup-AppProtectionPolicies' `
             -Action 'Deploy' -BestPracticeKey $bestPracticeKey `
-            -Status 'Skipped' -Disposition 'AlreadyCompliant' -Target $displayName -Readback 'Verified' `
-            -Detail "Platform=$platform; a toolkit-owned app protection policy already exists; leaving it unchanged. The current writer is create-only and does not refresh or rename existing policies."
+            -Status 'Skipped' -Disposition 'GuidedOnly' -Target $displayName -Readback 'NotAttempted' `
+            -Detail "Platform=$platform; a toolkit-owned app protection policy already exists; leaving it unchanged. This inventory does not verify its settings, targeted apps, or exact assignment. Review them in Intune; the create-only writer does not refresh or rename existing policies."
         continue
     }
 

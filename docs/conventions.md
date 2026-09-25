@@ -14,8 +14,8 @@ rather than copy it.
 
 PowerShell automation that configures Microsoft 365 tenants against Microsoft's
 recommended best-practice baselines. `Products/<Product>/` is the layout for
-each product; today the only shipped product is **Purview**
-(`Products/Purview/`). Everything below is Purview-specific unless noted.
+each product. See each product README for its release status and supported
+scope. The deployment-flow examples below describe Purview.
 
 Within each product, `Deploy-*.ps1` is the orchestrator, `Modules/` holds task
 scripts and shared helpers, `Config/` holds PowerShell data files, `AdHoc/`
@@ -31,8 +31,17 @@ pwsh scripts/verify.ps1
 
 This syntax-checks every `*.ps1` under `Products/` and validates every `*.psd1`
 configuration as a PowerShell data file. It needs no tenant connection and does
-not execute deployment scripts. This repo has no Pester/unit-test suite or
-automated tenant-behavior tests; a successful static check is not tenant validation.
+not execute deployment scripts. Run the offline regression checks separately:
+
+```powershell
+pwsh -NoProfile -File .\scripts\Test-IdentityReviewFixes.ps1
+pwsh -NoProfile -File .\scripts\Test-IntuneReviewFixes.ps1
+```
+
+These plain PowerShell checks use synthetic Graph responses and require no
+Pester installation or credentials. They cover the corrected deployment paths,
+not every product feature. Neither parsing nor mocked execution is tenant
+validation.
 
 For deployment-code changes, completion also requires validation of the affected
 deployment path against an approved non-production tenant. Do not connect to a

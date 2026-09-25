@@ -210,6 +210,7 @@
                 ReadWrite = 'Read'
                 Endpoint = '/organization?$select=id,verifiedDomains'
                 License = 'Microsoft Entra tenant'
+                # User.Read covers id and verifiedDomains on /organization.
                 GraphDelegatedScopes = @('User.Read')
                 GraphApplicationPermissions = @('Organization.Read.All')
                 MinimumRoles = @('User')

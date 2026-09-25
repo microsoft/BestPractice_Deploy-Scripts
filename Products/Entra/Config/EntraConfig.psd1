@@ -129,15 +129,17 @@
         # Original templates retain the guide's target ("On" = enabled).
         # Additions stay ReportOnly pending their own pilot. This metadata
         # never promotes a policy; DefaultState controls new-policy state.
+        # Corrected targeting, MFA alternatives and session controls require
+        # manual migration of existing policies, including with AdoptExisting.
         Policies = @(
-            @{ Key = 'require-mfa-admins'; File = 'require-mfa-admins.json'; RecommendedState = 'On'; Tier = 'P1Baseline'; NameCode = 'P1-01-Admins' }
+            @{ Key = 'require-mfa-admins'; File = 'require-mfa-admins.json'; RecommendedState = 'On'; Tier = 'P1Baseline'; NameCode = 'P1-01-Admins'; ReviewExistingOnly = $true }
             @{ Key = 'block-legacy-authentication'; File = 'block-legacy-authentication.json'; RecommendedState = 'On'; Tier = 'P1Baseline'; NameCode = 'P1-02-Users' }
             @{ Key = 'require-mfa-all-users'; File = 'require-mfa-all-users.json'; RecommendedState = 'On'; Tier = 'P1Baseline'; NameCode = 'P1-03-Users' }
             @{ Key = 'require-mfa-guests'; File = 'require-mfa-guests.json'; RecommendedState = 'On'; Tier = 'P1Baseline'; NameCode = 'P1-04-Guests' }
-            @{ Key = 'require-mfa-azure-management'; File = 'require-mfa-azure-management.json'; RecommendedState = 'On'; Tier = 'P1Baseline'; NameCode = 'P1-05-AzureManagement' }
-            @{ Key = 'require-mfa-admin-portals'; File = 'require-mfa-admin-portals.json'; RecommendedState = 'On'; Tier = 'P1Baseline'; NameCode = 'P1-06-AdminPortals' }
+            @{ Key = 'require-mfa-azure-management'; File = 'require-mfa-azure-management.json'; RecommendedState = 'On'; Tier = 'P1Baseline'; NameCode = 'P1-05-AzureManagement'; ReviewExistingOnly = $true }
+            @{ Key = 'require-mfa-admin-portals'; File = 'require-mfa-admin-portals.json'; RecommendedState = 'On'; Tier = 'P1Baseline'; NameCode = 'P1-06-AdminPortals'; ReviewExistingOnly = $true }
             @{ Key = 'block-unsupported-device-platform'; File = 'block-unsupported-device-platform.json'; RecommendedState = 'On'; Tier = 'P1Baseline'; NameCode = 'P1-07-Users' }
-            @{ Key = 'no-persistent-browser-session'; File = 'no-persistent-browser-session.json'; RecommendedState = 'ReportOnly'; Tier = 'P1Baseline'; NameCode = 'P1-08-Users' }
+            @{ Key = 'no-persistent-browser-session'; File = 'no-persistent-browser-session.json'; RecommendedState = 'ReportOnly'; Tier = 'P1Baseline'; NameCode = 'P1-08-Users'; ReviewExistingOnly = $true }
             @{
                 Key = 'require-approved-client-apps'
                 File = 'require-approved-client-apps.json'
@@ -149,7 +151,7 @@
                 # Keep this migration manual, including when AdoptExisting is set.
                 ReviewExistingOnly = $true
             }
-            @{ Key = 'require-compliant-device-or-mfa'; File = 'require-compliant-device-or-mfa.json'; RecommendedState = 'ReportOnly'; Tier = 'P1Baseline'; NameCode = 'P1-10-Users' }
+            @{ Key = 'require-compliant-device-or-mfa'; File = 'require-compliant-device-or-mfa.json'; RecommendedState = 'ReportOnly'; Tier = 'P1Baseline'; NameCode = 'P1-10-Users'; ReviewExistingOnly = $true }
             @{
                 Key = 'block-device-code-flow'
                 File = 'block-device-code-flow.json'

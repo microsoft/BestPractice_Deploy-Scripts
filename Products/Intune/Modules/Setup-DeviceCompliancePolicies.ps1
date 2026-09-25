@@ -33,24 +33,94 @@ $ConfirmPreference = 'None'
 . (Join-Path $PSScriptRoot 'Invoke-WithTransientRetry.ps1')
 . (Join-Path $PSScriptRoot 'Get-IntunePolicyCatalog.ps1')
 . (Join-Path $PSScriptRoot 'IntuneGraphClient.ps1')
+. (Join-Path $PSScriptRoot 'IntunePolicyReadback.ps1')
 
 function Get-ComplianceProperty {
     param([AllowNull()] $InputObject, [Parameter(Mandatory)] [string] $Name)
 
-    $exists = $false
-    $value = $null
-    if ($null -eq $InputObject) {
-        return [pscustomobject] @{ Exists = $exists; Value = $value }
+    return Get-IntuneReadbackProperty -InputObject $InputObject -Name $Name
+}
+
+function Test-ComplianceScheduledActionsMatch {
+    param(
+        [AllowNull()] $ExpectedActions,
+        [Parameter(Mandatory)] [string] $PolicyId,
+        [Parameter(Mandatory)] [hashtable] $Config
+    )
+
+    if ($null -eq $ExpectedActions) { return $true }
+    $actionUri = Resolve-IntuneGraphUri -BaseUri $Config.Api.GraphBaseUri `
+        -RelativePath "deviceManagement/deviceCompliancePolicies/$PolicyId/scheduledActionsForRule"
+    $actions = @(Get-ComplianceCollection -InitialUri $actionUri `
+            -GraphBaseUri $Config.Api.GraphBaseUri `
+            -EvidenceTarget 'device compliance scheduled action readback')
+    $actualActions = @(
+        foreach ($action in $actions) {
+            $id = (Get-ComplianceProperty $action 'id').Value
+            $rule = Get-ComplianceProperty $action 'ruleName'
+            if ($id -isnot [string] -or [string]::IsNullOrWhiteSpace($id) -or
+                -not $rule.Exists -or $rule.Value -isnot [string]) {
+                throw 'Microsoft Graph returned a malformed compliance scheduled action.'
+            }
+            $encodedId = [uri]::EscapeDataString($id)
+            $children = @(Get-ComplianceCollection -InitialUri "$actionUri/$encodedId/scheduledActionConfigurations" `
+                    -GraphBaseUri $Config.Api.GraphBaseUri `
+                    -EvidenceTarget 'device compliance scheduled action configurations')
+            @{
+                ruleName = $rule.Value
+                scheduledActionConfigurations = $children
+            }
+        }
+    )
+    return Test-IntuneManagedValue -Expected @($ExpectedActions) -Actual $actualActions `
+        -PropertyName 'scheduledActionsForRule'
+}
+
+function Assert-ComplianceReadback {
+    param(
+        [Parameter(Mandatory)] $Payload,
+        [Parameter(Mandatory)] [string] $PolicyId,
+        [Parameter(Mandatory)] [hashtable] $ExpectedTarget,
+        [Parameter(Mandatory)] [hashtable] $Config,
+        [switch] $Existing
+    )
+
+    $readback = 'NotAttempted'
+    try {
+        $encodedId = [uri]::EscapeDataString($PolicyId)
+        $uri = Resolve-IntuneGraphUri -BaseUri $Config.Api.GraphBaseUri `
+            -RelativePath "deviceManagement/deviceCompliancePolicies/$encodedId"
+        $actual = Invoke-WithTransientRetry -Description 'Read compliance policy managed fields' -Action {
+            Invoke-IntuneGraphRequest -Method GET -Uri $uri `
+                -EvidenceTarget 'device compliance policy readback' -DeferFailureEvidence
+        }
+        $expected = $Payload | ConvertTo-Json -Depth 30 | ConvertFrom-Json -AsHashtable
+        $expectedActions = $expected['scheduledActionsForRule']
+        $null = $expected.Remove('scheduledActionsForRule')
+        $fieldsMatch = Test-IntuneManagedValue $expected $actual
+        $actionsMatch = Test-ComplianceScheduledActionsMatch -ExpectedActions $expectedActions `
+            -PolicyId $encodedId -Config $Config
+        $assignments = @(Get-ComplianceCollection -InitialUri "$uri/assignments" `
+                -GraphBaseUri $Config.Api.GraphBaseUri -EvidenceTarget 'device compliance policy assignment readback')
+        $assignmentMatch = Test-IntuneExactAssignment $ExpectedTarget $assignments
+        $readback = 'Mismatch'
+        if (-not ($fieldsMatch -and $actionsMatch -and $assignmentMatch)) {
+            throw "ManagedFieldsMatch=$fieldsMatch; ScheduledActionsMatch=$actionsMatch; ExactAssignmentMatch=$assignmentMatch."
+        }
+        Add-IntuneRunLogEntry -Module 'Setup-DeviceCompliancePolicies' -Action 'Readback' `
+            -BestPracticeKey 'device-compliance-policies' -Target $Payload.displayName `
+            -Status $(if ($Existing) { 'Skipped' } else { 'Info' }) `
+            -Disposition $(if ($Existing) { 'AlreadyCompliant' } else { 'Applicable' }) `
+            -Readback 'Verified' -Detail 'Managed payload fields, scheduled action children, and exact assignment verified. No existing settings were changed.'
     }
-    if ($InputObject -is [System.Collections.IDictionary]) {
-        $exists = $InputObject.Contains($Name)
-        if ($exists) { $value = $InputObject[$Name] }
-        return [pscustomobject] @{ Exists = $exists; Value = $value }
+    catch {
+        Add-IntuneRunLogEntry -Module 'Setup-DeviceCompliancePolicies' -Action 'Readback' `
+            -BestPracticeKey 'device-compliance-policies' -Target $Payload.displayName `
+            -Status 'Failed' -Disposition 'Blocked' -Readback $readback `
+            -HttpStatusCode (Get-IntuneHttpStatusCode -ErrorRecord $_) `
+            -Detail "Verification failed. The create-only writer will not repair existing policies. Review settings, scheduled actions, and assignments in Intune before rerunning. Reason=$($_.Exception.Message)"
+        throw
     }
-    $property = $InputObject.PSObject.Properties[$Name]
-    $exists = $null -ne $property
-    if ($exists) { $value = $property.Value }
-    return [pscustomobject] @{ Exists = $exists; Value = $value }
 }
 
 function Get-ComplianceCollection {
@@ -76,8 +146,10 @@ function Get-ComplianceCollection {
         }
         $parsed = $null
         if (-not [uri]::TryCreate($nextUri, [UriKind]::Absolute, [ref] $parsed) -or
-            $parsed.Scheme -ne 'https' -or
+            $parsed.Scheme -ne 'https' -or -not $parsed.IsDefaultPort -or
+            $parsed.UserInfo -ne '' -or $parsed.Fragment -ne '' -or
             -not [string]::Equals($parsed.Host, $base.Host, [StringComparison]::OrdinalIgnoreCase) -or
+            $parsed.AbsolutePath -ne ([uri] $InitialUri).AbsolutePath -or
             -not $parsed.AbsolutePath.StartsWith($pathPrefix, [StringComparison]::OrdinalIgnoreCase)) {
             throw "Microsoft Graph returned an unsafe next link for $EvidenceTarget."
         }
@@ -101,7 +173,7 @@ function Get-ComplianceCollection {
             }
         }
         $value = Get-ComplianceProperty -InputObject $response -Name 'value'
-        if (-not $value.Exists -or $null -eq $value.Value) {
+        if (-not $value.Exists -or $value.Value -isnot [System.Collections.IList]) {
             throw "Microsoft Graph returned no value collection for $EvidenceTarget."
         }
         foreach ($item in @($value.Value)) {
@@ -111,6 +183,9 @@ function Get-ComplianceCollection {
             $items.Add($item)
         }
         $next = Get-ComplianceProperty -InputObject $response -Name '@odata.nextLink'
+        if ($next.Exists -and $null -ne $next.Value -and $next.Value -isnot [string]) {
+            throw "Microsoft Graph returned a malformed next link for $EvidenceTarget."
+        }
         $nextUri = if ($next.Exists) { [string] $next.Value } else { $null }
     }
     return @($items)
@@ -322,6 +397,7 @@ try {
                 $existingNames[$name] = [pscustomobject] @{
                     ManagedCount = 0
                     UnmanagedCount = 0
+                    PolicyId = [string] (Get-ComplianceProperty $p 'id').Value
                 }
             }
             if ($isManaged) {
@@ -360,20 +436,24 @@ try {
             throw $reason
         }
 
-        if ($existingNames.ContainsKey($dn) -and
-            $existingNames[$dn].ManagedCount -gt 0) {
-            Add-IntuneRunLogEntry -Module 'Setup-DeviceCompliancePolicies' `
-                -Action 'Create' -BestPracticeKey $bestPracticeKey `
-                -Status 'Skipped' -Disposition 'AlreadyCompliant' -Target $dn -Readback 'Verified' `
-                -Detail "A compliance policy named '$dn' already exists; leaving it unchanged. The current writer is create-only and does not refresh existing policies."
-            continue
-        }
-
         if ($payload.PSObject.Properties.Name -contains 'description') {
             $payload.description = ("$($payload.description) $tag").Trim()
         }
         else {
             $payload | Add-Member -NotePropertyName description -NotePropertyValue $tag -Force
+        }
+
+        if ($existingNames.ContainsKey($dn)) {
+            if ($existingNames[$dn].ManagedCount -gt 1) {
+                Add-IntuneRunLogEntry -Module 'Setup-DeviceCompliancePolicies' `
+                    -Action 'Collision' -BestPracticeKey $bestPracticeKey `
+                    -Status 'Failed' -Disposition 'Blocked' -Readback 'NotAttempted' `
+                    -Detail 'Multiple managed compliance policies have the configured name. Reconcile duplicates before rerunning.'
+                throw 'Duplicate managed compliance policies block the create-only writer.'
+            }
+            Assert-ComplianceReadback -Payload $payload -PolicyId $existingNames[$dn].PolicyId `
+                -ExpectedTarget $assignmentTarget -Config $Config -Existing
+            continue
         }
 
         if (-not $PSCmdlet.ShouldProcess($dn, 'Create device compliance policy and assign')) {
@@ -432,36 +512,8 @@ try {
             }
         }
 
-        $readbackUri = Resolve-IntuneGraphUri -BaseUri $Config.Api.GraphBaseUri `
-            -RelativePath "deviceManagement/deviceCompliancePolicies/$encodedCreatedId"
-        try {
-            $verify = Invoke-WithTransientRetry -Description "Read back compliance policy '$dn'" -Action {
-                Invoke-MgGraphRequest -Method GET -Uri $readbackUri
-            }
-            $readback = if ($verify -and $verify.displayName -eq $dn) { 'Verified' } else { 'Mismatch' }
-            if ($readback -ne 'Verified') {
-                $reason = "Compliance policy readback did not confirm the configured display name '$dn'."
-                Add-IntuneRunLogEntry -Module 'Setup-DeviceCompliancePolicies' `
-                    -Action 'Readback' -BestPracticeKey $bestPracticeKey `
-                    -Status 'Failed' -Disposition 'Blocked' -Target $dn -Readback $readback `
-                    -Detail $reason
-                throw $reason
-            }
-            Add-IntuneRunLogEntry -Module 'Setup-DeviceCompliancePolicies' `
-                -Action 'Readback' -BestPracticeKey $bestPracticeKey `
-                -Status 'Info' -Disposition 'Applicable' -Target $dn -Readback $readback `
-                -Detail "Read-back returned displayName='$($verify.displayName)'."
-        }
-        catch {
-            if ([string] $_.Exception.Message -eq "Compliance policy readback did not confirm the configured display name '$dn'.") {
-                throw
-            }
-            Add-IntuneRunLogEntry -Module 'Setup-DeviceCompliancePolicies' `
-                -Action 'Readback' -BestPracticeKey $bestPracticeKey `
-                -Status 'Failed' -Disposition 'Blocked' -Target $dn -Readback 'NotAttempted' `
-                -Detail "Read-back could not be completed: $($_.Exception.Message)"
-            throw
-        }
+        Assert-ComplianceReadback -Payload $payload -PolicyId $createdId `
+            -ExpectedTarget $assignmentTarget -Config $Config
     }
 }
 catch {

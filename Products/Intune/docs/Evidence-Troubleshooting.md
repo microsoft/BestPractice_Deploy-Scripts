@@ -21,6 +21,12 @@ those statuses only for the selected supported write paths.
 
 ## Common failures
 
+Compliance and enrollment restriction verification compares managed settings
+and the exact assignment, including on reruns. A matching name, a successful
+POST, or one matching group among several assignments is not proof of success.
+The create-only writers stop on drift, duplicate ownership or missing evidence;
+they do not repair existing policies automatically.
+
 | Symptom | Likely cause | Resolution |
 | --- | --- | --- |
 | Tenant identity mismatch | Wrong account, tenant ID, or delegated organization. | Stop. Reconnect to the intended tenant and verify its canonical domain. |
@@ -34,6 +40,9 @@ those statuses only for the selected supported write paths.
 | Default compliance assessment reports an unknown projection | Graph returned a nullable or missing `SecureByDefault` projection, which does not prove the portal's effective state. | Verify the Compliance policy settings page and retain the `GuidedOnly` result. The toolkit does not write from an unknown pre-write state. |
 | Default compliance post-write readback is unavailable | Graph accepted the update but did not return a verifiable Boolean `SecureByDefault` value. | Treat the run as blocked, preserve the evidence, and verify **Devices > Compliance > Compliance settings** before rerunning or continuing deployment. |
 | Compliance inventory reports scheduled-action readback unavailable | The documented v1.0 `scheduledActionsForRule` relationship returned `400` because no GET route matched. | Retain policy and assignment inventory, do not interpret the action count as zero, and keep scheduled-action automation blocked. |
+| Compliance write or rerun cannot verify scheduled actions | The rule collection or its `scheduledActionConfigurations` child read is unavailable or differs from the payload. | Stop rollout and inspect the policy and assignments in Intune. Inventory may still be useful, but this is not `Verified`. Do not create another policy to bypass the failed read. |
+| Enrollment assignment scope is `Unknown` with only exclusions | No inclusion target proves pilot scope. | Inspect assignments in Intune and record the approved include target. Do not infer pilot-only coverage from an exclusion. |
+| Enrollment restriction type differs between older and newer objects | Graph beta exposes both a single-platform type with `platformType`/`platformRestriction` and a legacy multi-platform type with per-platform fields. | Use the current toolkit's beta inventory and readback. It handles the shapes separately and does not silently convert an existing object. |
 | Enrollment restriction ID is not a GUID | Intune returned a service-defined opaque configuration ID. | Use the current toolkit, which URL-encodes non-empty opaque IDs and excludes them from evidence. Do not rewrite or expose the identifier. |
 | Enrollment restriction assessment fails on an assignment with no target | Graph returned an assignment object without a `target`, so targeting cannot be described. The assessment stops rather than reporting a scope it could not read. | Treat as failed, retain the sanitized evidence, and reconcile the restriction's assignments in the portal before rerunning. Earlier toolkit versions could skip this check depending on the order Graph returned assignments, so a run that previously succeeded may now surface it. |
 | App-protection policy ID is not a GUID | Intune returned a service-defined opaque Android or iOS/iPadOS policy ID. | Use the current toolkit, which URL-encodes non-empty opaque IDs for relationship reads and excludes them from evidence. |
@@ -45,6 +54,16 @@ those statuses only for the selected supported write paths.
 | Malformed or incomplete response | API contract drift or unsupported tenant state. | Treat as failed, retain sanitized evidence, and raise with the module/API owner. |
 | `GuidedOnly` | The action is interactive, beta-only, incompletely comparable, or unapproved for writes. | Follow the roadmap workflow and capture independent verification evidence. |
 | Safety gate refusal | Missing approval, pilot scope, emergency access, rollback acknowledgment, or category opt-in. | Do not bypass the gate. Complete change control and rerun. |
+
+## Policy API references
+
+The following contracts were checked September 25, 2026. Offline tests do not
+establish tenant support, effective permissions or service propagation behavior.
+
+- [Single-platform enrollment creation, beta](https://learn.microsoft.com/graph/api/intune-onboarding-deviceenrollmentplatformrestrictionconfiguration-create?view=graph-rest-beta)
+- [Legacy multi-platform enrollment shape, beta](https://learn.microsoft.com/graph/api/resources/intune-onboarding-deviceenrollmentplatformrestrictionsconfiguration?view=graph-rest-beta)
+- [Compliance scheduled-action rules, v1.0](https://learn.microsoft.com/graph/api/intune-deviceconfig-devicecompliancescheduledactionforrule-list?view=graph-rest-1.0)
+- [Compliance scheduled-action children, v1.0](https://learn.microsoft.com/graph/api/intune-deviceconfig-devicecomplianceactionitem-list?view=graph-rest-1.0)
 
 ## Graph module version conflicts
 

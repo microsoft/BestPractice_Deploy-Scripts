@@ -73,6 +73,36 @@ The template does not combine `mfa` with `authenticationStrength`, an unsupporte
 grant combination. Enabling methods and registering them remains outside this
 writer.
 
+### Corrected targeting and verification
+
+The admin and admin-portal MFA templates target only their configured roles.
+They do not combine those roles with a pilot-group include. Conditional Access
+includes are a union, so that combination would also target non-admin pilot
+members rather than limit the roles to the pilot. Azure-management MFA
+explicitly targets all users for the configured application. Review these
+tenant-wide principal selections even when the run supplies a pilot group.
+
+The device-or-MFA template includes `mfa` in its OR grant controls alongside
+`compliantDevice` and `domainJoinedDevice`. Browser-session comparisons check
+the managed session settings and device filter, while ignoring unrelated
+server response metadata. Every new CA policy is read back for the compared
+controls, targeting and exclusions, not just its state.
+
+Existing matches for these corrected templates require
+`ReviewExistingOnly = $true`, including with `-AdoptExisting`. The same
+manual-review boundary already applies to the phishing-resistant policy.
+Automatic adoption does not change authentication strength or session
+controls. Custom configuration must retain these review gates; a missing or
+false gate stops execution rather than silently migrating enforcing policies.
+
+These corrections have offline regression coverage, not new tenant-pilot
+evidence. The identity owner must review targeting, MFA readiness and recovery
+before enforcement. References checked September 25, 2026:
+
+- [Conditional Access user and group assignments](https://learn.microsoft.com/entra/identity/conditional-access/concept-conditional-access-users-groups)
+- [Grant controls](https://learn.microsoft.com/graph/api/resources/conditionalaccessgrantcontrols?view=graph-rest-1.0)
+- [Session controls](https://learn.microsoft.com/graph/api/resources/conditionalaccesssessioncontrols?view=graph-rest-1.0)
+
 ### API and source verification for the additions
 
 References checked **2026-09-24**. No live tenant validation of the additions
@@ -178,7 +208,8 @@ are **documented rather than scripted** (no hallucinated APIs), with the reason:
 - **Existing-policy matching and adopt.** A same-named policy is only treated as
   compliant when it actually carries the required protections and excludes the
   break-glass principals; otherwise drift is reported (no duplicate is created).
-  `-AdoptExisting` updates other existing policies in place as a read-modify-write,
+  `-AdoptExisting` updates only policies outside the mandatory manual-review
+  set described above, in place as a read-modify-write:
   it ensures **only** the required grant controls and the break-glass exclusion,
   and preserves the customer's other conditions (named locations, risk levels),
   session controls, targeting, and state.
@@ -233,7 +264,8 @@ afterward):
 - Teardown removed the ten policies, the pilot group, and the break-glass
   account, returning the tenant to its prior state.
 
-That historical record does not validate the 0.3.0 Security Defaults gate,
+That historical record does not validate the corrected targeting, MFA alternative,
+session-control verification, the 0.3.0 Security Defaults gate,
 the corrected app-protection filters or the 0.4.0 policy additions. Offline fixtures cover their code
 behavior; fresh pilot preview, effective roles/licensing, representative app
 behavior and transition/recovery evidence are still required before rollout.

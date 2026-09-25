@@ -120,6 +120,10 @@ Every run is intended to produce a redacted JSON sidecar and HTML report under
 the schema, verdicts, retry records, redaction boundary, and evidence-retention
 rules.
 
+If a module contains both failed and blocked actions, its summary is `FAILED`.
+The HTML report and JSON sidecar use the same precedence; a blocked action
+does not hide an operation or readback failure.
+
 ## Safety gates
 
 Default execution is read-only. Unsupported automation and unproven writes

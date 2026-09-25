@@ -91,6 +91,13 @@ particular, the optional phishing-resistant admin policy targets privileged
 roles, not the intersection of those roles and the pilot group. Review
 every selected policy's actual conditions before apply.
 
+The standard admin MFA and Microsoft admin-portal policies also target
+directory roles across the tenant, without adding pilot-group members.
+Azure-management MFA targets all users for that application, even when a
+pilot group is supplied. New policies remain report-only unless you change
+the configured default. Do not treat the pilot switch as a cap on these
+role- or application-scoped policies.
+
 Optional P1 hardening requires method readiness; P2 risk controls remain out
 of scope. App-protection enforcement depends on compatible applications and
 assigned Intune app-protection policies. See [Scenarios](Scenarios.md).
@@ -130,6 +137,14 @@ readback evidence in the Entra admin center. Rerun with `-WhatIf` and
 investigate unexpected changes. Existing-policy matches can require manual
 review even when fields match; `-AdoptExisting` does not bypass review-only
 policies or ambiguous matches.
+
+Use the current configuration's `ReviewExistingOnly = $true` for admin MFA,
+admin portals, Azure management, device-or-MFA and browser-session policies.
+Old custom references without this gate must be updated before running.
+The toolkit leaves existing matches unchanged, including with adoption.
+Review their effective scope and grants manually before migrating them.
+Browser-session comparisons include the session controls and device filter;
+successful readback is no longer based on policy state alone.
 
 Enforcement is a separate change after review of report-only sign-ins,
 application compatibility, user readiness, and tested recovery. Do not leave

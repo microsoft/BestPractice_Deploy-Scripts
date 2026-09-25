@@ -102,7 +102,9 @@ does not make a future operation supported.
 not re-evaluated per module. Six are read scopes used by assessments,
 preflight, and Conditional Access readback:
 
-- `User.Read` for the selected tenant identity fields.
+- `User.Read` for the selected tenant identity fields (`id`, `displayName` and
+  `verifiedDomains`) from `/organization`. These fields do not require
+  `Organization.Read.All` in a delegated session.
 - `LicenseAssignment.Read.All` for subscribed SKU discovery.
 - `DeviceManagementConfiguration.Read.All` for compliance-policy inventory.
 - `DeviceManagementApps.Read.All` for app-protection inventory and the
@@ -110,6 +112,11 @@ preflight, and Conditional Access readback:
 - `DeviceManagementServiceConfig.Read.All` for Apple certificate and enrollment
   restriction inventory.
 - `Policy.Read.All` for Conditional Access policy listing and readback.
+
+The tenant-identity permission follows [List organizations](https://learn.microsoft.com/graph/api/organization-list?view=graph-rest-1.0),
+checked September 25, 2026. Do not add broader consent solely because the
+endpoint is `/organization`; verify the requested fields and authentication
+mode first. Application permissions are a different contract.
 
 The remaining five are write scopes used by the supported, gated write paths:
 

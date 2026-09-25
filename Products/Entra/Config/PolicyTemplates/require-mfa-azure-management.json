@@ -11,8 +11,8 @@
     },
     "clientAppTypes": "all",
     "users": {
-      "includeGroups": [
-        "{ID}"
+      "includeUsers": [
+        "All"
       ]
     }
   }

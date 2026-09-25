@@ -126,10 +126,29 @@ which owns device-enrollment Conditional Access.
   and changes nothing.
 - **Pilot scope by default.** All-users-style policies are scoped to a
   `-PilotGroupId`; tenant-wide is an explicit `-AssignTenantWide` opt-in.
+  The admin MFA and admin-portal policies target their configured directory
+  roles across the tenant. Azure-management MFA targets all users for that
+  application. These policies are not capped by the pilot group; review their
+  scope and emergency exclusions before creating or enforcing them.
 - **Existing policies.** Current and configured legacy names are matched
   across all result pages; ambiguous matches block creation. The app-protection
   policy is review-only when present, including with `-AdoptExisting`.
   It is not silently repaired, renamed or duplicated.
+
+The corrected admin MFA, admin-portal, Azure-management, device-or-MFA and
+browser-session policies also require `ReviewExistingOnly = $true` in custom
+configuration. Existing matches remain unchanged and require manual review,
+including with `-AdoptExisting`. This avoids silently changing the coverage or
+grant requirements of an enforcing policy. The device-or-MFA template uses
+an OR between compliant device, hybrid-joined device and MFA, not a requirement
+to satisfy all three.
+
+Creation readback checks the compared grants, targeting and emergency
+exclusions as well as state. For browser-session policies it also checks the
+configured session controls and device filter. Missing or changed fields are
+reported as a mismatch, not successful verification. Existing authentication
+strength policies remain manual-review only; ordinary MFA is not substituted
+for phishing-resistant authentication.
 
 These templates are not a proven one-for-one replacement for Security
 Defaults. Protecting registration does not enroll everyone, and report-only

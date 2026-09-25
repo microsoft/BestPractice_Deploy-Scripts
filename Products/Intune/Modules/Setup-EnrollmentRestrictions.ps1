@@ -35,6 +35,7 @@ $ConfirmPreference = 'None'
 . (Join-Path $PSScriptRoot 'Invoke-WithTransientRetry.ps1')
 . (Join-Path $PSScriptRoot 'IntuneAssignmentScope.ps1')
 . (Join-Path $PSScriptRoot 'IntuneGraphClient.ps1')
+. (Join-Path $PSScriptRoot 'IntunePolicyReadback.ps1')
 
 function Get-IntuneEnrollmentProperty {
     [CmdletBinding()]
@@ -43,20 +44,7 @@ function Get-IntuneEnrollmentProperty {
         [Parameter(Mandatory)] [string] $Name
     )
 
-    $exists = $false
-    $value = $null
-    if ($null -eq $InputObject) {
-        return [pscustomobject] @{ Exists = $exists; Value = $value }
-    }
-    if ($InputObject -is [System.Collections.IDictionary]) {
-        $exists = $InputObject.Contains($Name)
-        if ($exists) { $value = $InputObject[$Name] }
-        return [pscustomobject] @{ Exists = $exists; Value = $value }
-    }
-    $property = $InputObject.PSObject.Properties[$Name]
-    $exists = $null -ne $property
-    if ($exists) { $value = $property.Value }
-    return [pscustomobject] @{ Exists = $exists; Value = $value }
+    return Get-IntuneReadbackProperty -InputObject $InputObject -Name $Name
 }
 
 function New-IntuneEnrollmentSafeException {
@@ -73,6 +61,48 @@ function New-IntuneEnrollmentSafeException {
             -NotePropertyValue ([pscustomobject] @{ StatusCode = $status })
     }
     return $exception
+}
+
+function Assert-IntuneEnrollmentReadback {
+    param(
+        [Parameter(Mandatory)] [hashtable] $Payload,
+        [Parameter(Mandatory)] [hashtable] $ExpectedTarget,
+        [Parameter(Mandatory)] [string] $ConfigurationId,
+        [Parameter(Mandatory)] [hashtable] $Config,
+        [switch] $Existing
+    )
+
+    $readback = 'NotAttempted'
+    try {
+        $encodedId = [uri]::EscapeDataString($ConfigurationId)
+        $uri = Resolve-IntuneGraphUri -BaseUri $Config.Api.GraphBetaBaseUri `
+            -RelativePath "deviceManagement/deviceEnrollmentConfigurations/$encodedId"
+        $actual = Invoke-WithTransientRetry -Description 'Read enrollment restriction managed fields' -Action {
+            Invoke-IntuneGraphRequest -Method GET -Uri $uri `
+                -EvidenceTarget 'enrollment restriction readback' -DeferFailureEvidence
+        }
+        $fieldsMatch = Test-IntuneManagedValue $Payload $actual
+        $assignments = @(Get-IntuneEnrollmentCollection -InitialUri "$uri/assignments" `
+                -GraphBaseUri $Config.Api.GraphBetaBaseUri -EvidenceTarget 'enrollment restriction assignment readback')
+        $assignmentMatch = Test-IntuneExactAssignment $ExpectedTarget $assignments
+        $readback = 'Mismatch'
+        if (-not ($fieldsMatch -and $assignmentMatch)) {
+            throw "ManagedFieldsMatch=$fieldsMatch; ExactAssignmentMatch=$assignmentMatch."
+        }
+        Add-IntuneRunLogEntry -Module 'Setup-EnrollmentRestrictions' -Action 'Readback' `
+            -BestPracticeKey 'enrollment-restrictions' -Target $Payload.displayName `
+            -Status $(if ($Existing) { 'Skipped' } else { 'Info' }) `
+            -Disposition $(if ($Existing) { 'AlreadyCompliant' } else { 'Applicable' }) `
+            -Readback 'Verified' -Detail 'Managed payload fields, ownership, and exact assignment verified. No existing settings were changed.'
+    }
+    catch {
+        Add-IntuneRunLogEntry -Module 'Setup-EnrollmentRestrictions' -Action 'Readback' `
+            -BestPracticeKey 'enrollment-restrictions' -Target $Payload.displayName `
+            -Status 'Failed' -Disposition 'Blocked' -Readback $readback `
+            -HttpStatusCode (Get-IntuneHttpStatusCode -ErrorRecord $_) `
+            -Detail "Verification failed. The create-only writer will not repair existing restrictions. Review the type, platform settings, ownership, and assignments in Intune before rerunning. Reason=$($_.Exception.Message)"
+        throw
+    }
 }
 
 function Get-IntuneEnrollmentCollection {
@@ -98,8 +128,10 @@ function Get-IntuneEnrollmentCollection {
         }
         $parsedNext = $null
         if (-not [uri]::TryCreate($nextUri, [UriKind]::Absolute, [ref] $parsedNext) -or
-            $parsedNext.Scheme -ne 'https' -or
+            $parsedNext.Scheme -ne 'https' -or -not $parsedNext.IsDefaultPort -or
+            $parsedNext.UserInfo -ne '' -or $parsedNext.Fragment -ne '' -or
             -not [string]::Equals($parsedNext.Host, $base.Host, [StringComparison]::OrdinalIgnoreCase) -or
+            $parsedNext.AbsolutePath -ne ([uri] $InitialUri).AbsolutePath -or
             -not $parsedNext.AbsolutePath.StartsWith(
                 $expectedPathPrefix,
                 [StringComparison]::OrdinalIgnoreCase
@@ -118,7 +150,7 @@ function Get-IntuneEnrollmentCollection {
             }
         }
         $value = Get-IntuneEnrollmentProperty -InputObject $response -Name 'value'
-        if (-not $value.Exists -or $null -eq $value.Value) {
+        if (-not $value.Exists -or $value.Value -isnot [System.Collections.IList]) {
             throw "Microsoft Graph returned no value collection for $EvidenceTarget."
         }
         foreach ($item in @($value.Value)) {
@@ -129,6 +161,9 @@ function Get-IntuneEnrollmentCollection {
         }
         $nextLink = Get-IntuneEnrollmentProperty `
             -InputObject $response -Name '@odata.nextLink'
+        if ($nextLink.Exists -and $null -ne $nextLink.Value -and $nextLink.Value -isnot [string]) {
+            throw "Microsoft Graph returned a malformed next link for $EvidenceTarget."
+        }
         $nextUri = if ($nextLink.Exists) { [string] $nextLink.Value } else { $null }
     }
     return @($results)
@@ -172,14 +207,18 @@ try {
         throw 'Setup-EnrollmentRestrictions.ps1 requires Context.TenantAdminUpn for Graph authentication.'
     }
 
-    $collectionUri = Resolve-IntuneGraphUri -BaseUri $Config.Api.GraphBaseUri `
+    # Beta exposes both the single-platform writer's type and legacy multi-platform restrictions.
+    $collectionUri = Resolve-IntuneGraphUri -BaseUri $Config.Api.GraphBetaBaseUri `
         -RelativePath 'deviceManagement/deviceEnrollmentConfigurations'
     $allConfigurations = @(Get-IntuneEnrollmentCollection `
-            -InitialUri $collectionUri -GraphBaseUri $Config.Api.GraphBaseUri `
+            -InitialUri $collectionUri -GraphBaseUri $Config.Api.GraphBetaBaseUri `
             -EvidenceTarget 'device enrollment configurations')
     $configurations = @($allConfigurations | Where-Object {
             $type = Get-IntuneEnrollmentProperty -InputObject $_ -Name '@odata.type'
-            [string] $type.Value -match '(?i)deviceEnrollmentPlatformRestrictionsConfiguration$'
+            [string] $type.Value -in @(
+                '#microsoft.graph.deviceEnrollmentPlatformRestrictionsConfiguration',
+                '#microsoft.graph.deviceEnrollmentPlatformRestrictionConfiguration'
+            )
         })
 
     $assignments = [System.Collections.Generic.List[object]]::new()
@@ -189,7 +228,7 @@ try {
     $unassignedPersonalBlockedSignals = 0
     $assignedConfigurationCount = 0
     $unassignedConfigurationCount = 0
-    $restrictionProperties = @(
+    $legacyRestrictionProperties = @(
         'iosRestriction',
         'windowsRestriction',
         'windowsMobileRestriction',
@@ -198,11 +237,26 @@ try {
     )
     foreach ($configuration in $configurations) {
         $id = Get-IntuneEnrollmentProperty -InputObject $configuration -Name 'id'
-        if (-not $id.Exists -or
+        if (-not $id.Exists -or $id.Value -isnot [string] -or
             [string]::IsNullOrWhiteSpace([string] $id.Value)) {
             throw 'Microsoft Graph returned a malformed enrollment restriction configuration ID.'
         }
         $encodedConfigurationId = [uri]::EscapeDataString([string] $id.Value)
+        $type = (Get-IntuneEnrollmentProperty $configuration '@odata.type').Value
+        $restrictionProperties = $legacyRestrictionProperties
+        if ($type -eq '#microsoft.graph.deviceEnrollmentPlatformRestrictionConfiguration') {
+            $platform = (Get-IntuneEnrollmentProperty $configuration 'platformType').Value
+            if ($platform -isnot [string] -or [string]::IsNullOrWhiteSpace($platform)) {
+                throw 'Microsoft Graph returned a single-platform restriction without a platformType.'
+            }
+            $restrictionProperties = @('platformRestriction')
+        }
+        else {
+            foreach ($optional in @('androidForWorkRestriction', 'macRestriction', 'windowsHomeSkuRestriction', 'visionOSRestriction', 'tvosRestriction')) {
+                $extra = Get-IntuneEnrollmentProperty $configuration $optional
+                if ($extra.Exists -and $null -ne $extra.Value) { $restrictionProperties += $optional }
+            }
+        }
         foreach ($propertyName in $restrictionProperties) {
             $restriction = Get-IntuneEnrollmentProperty `
                 -InputObject $configuration -Name $propertyName
@@ -218,11 +272,11 @@ try {
             }
         }
 
-        $assignmentUri = Resolve-IntuneGraphUri -BaseUri $Config.Api.GraphBaseUri `
+        $assignmentUri = Resolve-IntuneGraphUri -BaseUri $Config.Api.GraphBetaBaseUri `
             -RelativePath "deviceManagement/deviceEnrollmentConfigurations/$encodedConfigurationId/assignments"
         $configurationAssignments = @(Get-IntuneEnrollmentCollection `
                     -InitialUri $assignmentUri `
-                    -GraphBaseUri $Config.Api.GraphBaseUri `
+                    -GraphBaseUri $Config.Api.GraphBetaBaseUri `
                     -EvidenceTarget 'enrollment restriction assignments')
         foreach ($assignment in $configurationAssignments) {
             $assignments.Add($assignment)
@@ -323,6 +377,7 @@ try {
                 $existingNames[$name] = [pscustomobject] @{
                     ManagedCount = 0
                     UnmanagedCount = 0
+                    ConfigurationId = [string] (Get-IntuneEnrollmentProperty $c 'id').Value
                 }
             }
             if ($isManaged) {
@@ -334,7 +389,8 @@ try {
         }
     }
 
-    $createUri = "$($Config.Api.GraphBetaBaseUri)/deviceManagement/deviceEnrollmentConfigurations"
+    $createUri = Resolve-IntuneGraphUri -BaseUri $Config.Api.GraphBetaBaseUri `
+        -RelativePath 'deviceManagement/deviceEnrollmentConfigurations'
     $assignmentTarget = $null
     $assignmentDetail = $null
     if ($Context.AssignmentScope -eq 'TenantWide') {
@@ -348,6 +404,25 @@ try {
 
     foreach ($restriction in @($Config.EnrollmentRestrictions.Restrictions)) {
         $dn = [string] $restriction.DisplayName
+        if ($restriction.PlatformBlocked -isnot [bool] -or
+            $restriction.PersonalDeviceEnrollmentBlocked -isnot [bool]) {
+            throw 'Enrollment restriction flags must be Boolean configuration values.'
+        }
+        $payload = @{
+            '@odata.type'       = '#microsoft.graph.deviceEnrollmentPlatformRestrictionConfiguration'
+            displayName         = $dn
+            description         = $tag
+            platformType        = $restriction.PlatformType
+            platformRestriction = @{
+                '@odata.type'                   = 'microsoft.graph.deviceEnrollmentPlatformRestriction'
+                platformBlocked                 = $restriction.PlatformBlocked
+                personalDeviceEnrollmentBlocked = $restriction.PersonalDeviceEnrollmentBlocked
+                osMinimumVersion                = ''
+                osMaximumVersion                = ''
+                blockedManufacturers            = @()
+                blockedSkus                     = @()
+            }
+        }
 
         if ($existingNames.ContainsKey($dn) -and
             $existingNames[$dn].UnmanagedCount -gt 0) {
@@ -361,10 +436,16 @@ try {
 
         if ($existingNames.ContainsKey($dn) -and
             $existingNames[$dn].ManagedCount -gt 0) {
-            Add-IntuneRunLogEntry -Module 'Setup-EnrollmentRestrictions' `
-                -Action 'Create' -BestPracticeKey $bestPracticeKey `
-                -Status 'Skipped' -Disposition 'AlreadyCompliant' -Target $dn -Readback 'Verified' `
-                -Detail "An enrollment restriction named '$dn' already exists; leaving it unchanged. The current writer is create-only and does not refresh existing restrictions."
+            if ($existingNames[$dn].ManagedCount -gt 1) {
+                Add-IntuneRunLogEntry -Module 'Setup-EnrollmentRestrictions' `
+                    -Action 'Collision' -BestPracticeKey $bestPracticeKey `
+                    -Status 'Failed' -Disposition 'Blocked' -Readback 'NotAttempted' `
+                    -Detail 'Multiple managed enrollment restrictions have the configured name. Reconcile duplicates before rerunning.'
+                throw 'Duplicate managed enrollment restrictions block the create-only writer.'
+            }
+            Assert-IntuneEnrollmentReadback -Payload $payload `
+                -ConfigurationId $existingNames[$dn].ConfigurationId `
+                -ExpectedTarget $assignmentTarget -Config $Config -Existing
             continue
         }
 
@@ -376,21 +457,7 @@ try {
             continue
         }
 
-        $body = @{
-            '@odata.type'       = '#microsoft.graph.deviceEnrollmentPlatformRestrictionConfiguration'
-            displayName         = $dn
-            description         = $tag
-            platformType        = $restriction.PlatformType
-            platformRestriction = @{
-                '@odata.type'                    = 'microsoft.graph.deviceEnrollmentPlatformRestriction'
-                platformBlocked                 = [bool] $restriction.PlatformBlocked
-                personalDeviceEnrollmentBlocked = [bool] $restriction.PersonalDeviceEnrollmentBlocked
-                osMinimumVersion                = ''
-                osMaximumVersion                = ''
-                blockedManufacturers            = @()
-                blockedSkus                     = @()
-            }
-        } | ConvertTo-Json -Depth 10
+        $body = $payload | ConvertTo-Json -Depth 10
 
         $created = $null
         try {
@@ -439,34 +506,9 @@ try {
             }
         }
 
-        try {
-            $verify = Invoke-WithTransientRetry -Description "Read back enrollment restriction '$dn'" -Action {
-                Invoke-MgGraphRequest -Method GET -Uri "$createUri/$encodedCreatedId"
-            }
-            $readback = if ($verify -and $verify.displayName -eq $dn) { 'Verified' } else { 'Mismatch' }
-            if ($readback -ne 'Verified') {
-                $reason = "Enrollment restriction readback did not confirm the configured display name '$dn'."
-                Add-IntuneRunLogEntry -Module 'Setup-EnrollmentRestrictions' `
-                    -Action 'Readback' -BestPracticeKey $bestPracticeKey `
-                    -Status 'Failed' -Disposition 'Blocked' -Target $dn -Readback $readback `
-                    -Detail $reason
-                throw $reason
-            }
-            Add-IntuneRunLogEntry -Module 'Setup-EnrollmentRestrictions' `
-                -Action 'Readback' -BestPracticeKey $bestPracticeKey `
-                -Status 'Info' -Disposition 'Applicable' -Target $dn -Readback $readback `
-                -Detail "Read-back returned displayName='$($verify.displayName)'."
-        }
-        catch {
-            if ([string] $_.Exception.Message -eq "Enrollment restriction readback did not confirm the configured display name '$dn'.") {
-                throw
-            }
-            Add-IntuneRunLogEntry -Module 'Setup-EnrollmentRestrictions' `
-                -Action 'Readback' -BestPracticeKey $bestPracticeKey `
-                -Status 'Failed' -Disposition 'Blocked' -Target $dn -Readback 'NotAttempted' `
-                -Detail "Read-back could not be completed: $($_.Exception.Message)"
-            throw
-        }
+        Assert-IntuneEnrollmentReadback -Payload $payload `
+            -ConfigurationId ([string] $createdIdProperty.Value) `
+            -ExpectedTarget $assignmentTarget -Config $Config
     }
 }
 catch {
