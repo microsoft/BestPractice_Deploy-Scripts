@@ -653,8 +653,13 @@ Top-N users by hit count gives you the list of people to talk to before flipping
     # ----- write ----------------------------------------------------------
     $dir = Split-Path -Parent $OutputPath
     if ($dir -and -not (Test-Path $dir)) {
-        New-Item -ItemType Directory -Path $dir -Force | Out-Null
+        New-Item -ItemType Directory -Path $dir -Force -WhatIf:$false | Out-Null
     }
-    Set-Content -Path $OutputPath -Value $sb.ToString() -Encoding UTF8 -NoNewline:$false
+    # -WhatIf:$false because this is local evidence output, not a tenant change.
+    # This function does not declare SupportsShouldProcess, so inheriting
+    # $WhatIfPreference from the orchestrator was never intended. Without it a
+    # -WhatIf run writes no report while still returning the path below, so the
+    # orchestrator reports "HTML report written" for a file that does not exist.
+    Set-Content -Path $OutputPath -Value $sb.ToString() -Encoding UTF8 -NoNewline:$false -WhatIf:$false
     return $OutputPath
 }

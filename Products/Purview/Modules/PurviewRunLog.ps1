@@ -179,6 +179,10 @@ function Save-PurviewRunLogJson {
     }
 
     $json = $payload | ConvertTo-Json -Depth 8
-    Set-Content -Path $Path -Value $json -Encoding UTF8
+    # -WhatIf:$false because this is local evidence output, not a tenant change.
+    # Without it the write inherits $WhatIfPreference from the orchestrator and a
+    # -WhatIf run silently produces no JSON sidecar, while the caller still
+    # reports a path that was never written.
+    Set-Content -Path $Path -Value $json -Encoding UTF8 -WhatIf:$false
     return $Path
 }

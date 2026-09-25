@@ -64,7 +64,7 @@ verticals the toolkit serves:
 | **Financial advisors / brokers** | 5–7 years | SEC Rule 17a-4 (US); ASIC RG 78 (AU); Sarbanes-Oxley 7 years |
 | **General SMB / professional services** | No formal requirement; 7 years matches the broader regulatory floor and is a safe ceiling | — |
 
-The default was raised from 2 years to 7 years (see issue #8) to align
+The default was raised from 2 years to 7 years to align
 with this regulatory floor. For customers in these verticals you can
 keep the default unchanged.
 

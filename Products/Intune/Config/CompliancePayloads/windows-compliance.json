@@ -1,0 +1,37 @@
+{
+  "@odata.type": "#microsoft.graph.windows10CompliancePolicy",
+  "displayName": "Windows - Baseline security compliance",
+  "description": "Windows device compliance baseline (guide task 7): BitLocker, Secure Boot, code integrity, firewall, TPM, and Microsoft Defender with real-time protection.",
+  "roleScopeTagIds": ["0"],
+  "scheduledActionsForRule": [
+    {
+      "ruleName": "PasswordRequired",
+      "scheduledActionConfigurations": [
+        {
+          "actionType": "block",
+          "gracePeriodHours": 0,
+          "notificationTemplateId": "",
+          "notificationMessageCCList": []
+        }
+      ]
+    }
+  ],
+  "deviceThreatProtectionRequiredSecurityLevel": "unavailable",
+  "passwordRequiredType": "alphanumeric",
+  "bitLockerEnabled": true,
+  "secureBootEnabled": true,
+  "codeIntegrityEnabled": true,
+  "passwordRequired": true,
+  "passwordBlockSimple": true,
+  "passwordMinimumCharacterSetCount": 2,
+  "passwordMinutesOfInactivityBeforeLock": 15,
+  "storageRequireEncryption": true,
+  "activeFirewallRequired": true,
+  "tpmRequired": true,
+  "antivirusRequired": true,
+  "antiSpywareRequired": true,
+  "defenderEnabled": true,
+  "signatureOutOfDate": true,
+  "rtpEnabled": true,
+  "deviceThreatProtectionEnabled": false
+}

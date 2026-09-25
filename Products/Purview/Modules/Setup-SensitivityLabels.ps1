@@ -127,6 +127,9 @@ $ConfirmPreference   = 'None'
 
 # Shared retry helper for transient IPPS errors (502, 503, 504, 429, timeouts).
 . (Join-Path $PSScriptRoot 'Invoke-WithTransientRetry.ps1')
+. (Join-Path $PSScriptRoot 'PurviewConfigurationContract.ps1')
+
+Assert-PurviewLabelIdentityConfiguration -Config $Config
 
 # Extract a meaningful error message from an IPPS ErrorRecord. IPPS REST cmdlets
 # sometimes leave Exception.Message empty and only populate ErrorDetails or
@@ -231,6 +234,11 @@ if ($Config.EncryptionRightsDefinitions -match '\{TenantDomain\}') {
     }
 }
 $offlineDays = $Config.EncryptionOfflineAccessDays
+$contentExpiration = if ($Config.EncryptionContentExpiredOnDateInDaysOrNever) {
+    [string]$Config.EncryptionContentExpiredOnDateInDaysOrNever
+} else {
+    'Never'
+}
 
 # Cache the full label set once so we can match by DisplayName too. The IPPS
 # Get-Label -Identity switch only resolves Name/ImmutableId/Guid -- not
@@ -982,7 +990,7 @@ function Set-LabelEncryption {
                 -EncryptionEnabled $true `
                 -EncryptionProtectionType 'Template' `
                 -EncryptionRightsDefinitions $effectiveRights `
-                -EncryptionContentExpiredOnDateInDaysOrNever 'Never' `
+                -EncryptionContentExpiredOnDateInDaysOrNever $contentExpiration `
                 -EncryptionOfflineAccessDays $offlineDays `
                 -ErrorAction Stop -WarningAction SilentlyContinue -Confirm:$false | Out-Null
         }
@@ -992,7 +1000,7 @@ function Set-LabelEncryption {
             EncryptionEnabled                           = $true
             EncryptionProtectionType                    = 'UserDefined'
             EncryptionPromptUser                        = $true   # Word/Excel/PowerPoint: prompt user to assign permissions
-            EncryptionContentExpiredOnDateInDaysOrNever = 'Never'
+            EncryptionContentExpiredOnDateInDaysOrNever = $contentExpiration
             EncryptionOfflineAccessDays                 = $offlineDays
         }
         switch ($UserDefinedOutlookBehavior) {
@@ -1040,7 +1048,7 @@ function Set-LabelContentMarking {
 }
 
 # ---------------------------------------------------------------------------
-# ContentType (label scope) helpers — issue #24.
+# ContentType (label scope) helpers.
 #
 # `ContentType` is the IPPS `New-Label -ContentType` value: a comma-separated
 # string from the set {File, Email, Site, UnifiedGroup, PurviewAssets,
@@ -1052,7 +1060,7 @@ function Set-LabelContentMarking {
 # so we can:
 #   * compare config vs live without false drift from whitespace / ordering;
 #   * UNION live + desired on adoption so we never strip a manually-added
-#     scope (per issue #24 AC3 + AC6);
+#     scope;
 #   * strip the container bits when -SkipContainerLabels is set without
 #     mutating the rest of the desired scope.
 # ---------------------------------------------------------------------------
@@ -1093,7 +1101,7 @@ function Get-DesiredContentTypeSet {
                    the Set-Label so the IPPS default kicks in);
           * sorted-unique string[]  otherwise.
         Emits a one-line info message + Skipped run-log entry per label
-        when container bits are stripped (issue #24 AC4).
+        when container bits are stripped.
     #>
     [OutputType([string[]])]
     param(
@@ -1207,7 +1215,7 @@ function New-OrUpdate-Label {
             $newArgs['AdvancedSettings'] = @{ color = [string]$LabelDef.Color }
         }
 
-        # Issue #24 — pass -ContentType through to New-Label when configured.
+        # Pass -ContentType through to New-Label when configured.
         # We never UNION here (the label doesn't exist yet, so there is no
         # live value to preserve); UNION applies only on the adopt/update
         # path below.
@@ -1478,17 +1486,17 @@ function New-OrUpdate-Label {
         }
     }
 
-    # ContentType drift correction (issue #24).
+    # ContentType drift correction.
     #
     # Only runs on the adopt/update path — when a label is freshly created,
     # New-Label above already applied the desired ContentType. For pre-
     # existing labels we use UNION-not-replace: live ContentType UNION
     # desired ContentType. This ensures:
     #   * We never strip a scope a customer manually added in the portal
-    #     (issue #24 AC3 + AC6).
+    #     when merging the desired scope.
     #   * Re-running the deploy is a no-op when the live set already
     #     covers the desired set (sorted-set equality, no false 'Updated'
-    #     log lines per issue #24 AC3).
+    #     log lines).
     #
     # The -SkipContainerLabels gate runs inside Get-DesiredContentTypeSet,
     # so the UNION operand already has 'Site'/'UnifiedGroup' stripped when
@@ -1658,7 +1666,7 @@ if ($Config.LabelPolicy -and $Config.LabelPolicy.Name -and $Config.LabelPolicy.N
 }
 
 # ---------------------------------------------------------------------------
-# Pre-flight — container-scope sanity check (issue #24).
+# Pre-flight: container-scope sanity check.
 #
 # When the operator passed -SkipContainerLabels (or license auto-detect did
 # so for them), Setup-TenantSettings.ps1 step [5/5] skips the

@@ -11,6 +11,9 @@ partners/MSPs and in-house IT teams alike.
 | Product | Toolkit | Docs | Status |
 |---------|---------|------|--------|
 | Microsoft Purview (Data Security baseline for Business Premium) | [`Products/Purview/`](Products/Purview/README.md) | [Site](https://microsoft.github.io/BestPractice_Deploy-Scripts/purview/) | Available |
+| Microsoft Defender (read-only default with pilot-validated ASR Audit configuration) | [`Products/Defender/`](Products/Defender/README.md) | [Site](https://microsoft.github.io/BestPractice_Deploy-Scripts/defender/) | Candidate; release authorization required |
+| Microsoft Intune (device management & enrollment baseline) | [`Products/Intune/`](Products/Intune/README.md) | [Site](https://microsoft.github.io/BestPractice_Deploy-Scripts/intune/) | Candidate; release authorization required |
+| Microsoft Entra (Conditional Access baseline for Business Premium) | [`Products/Entra/`](Products/Entra/README.md) | [Site](https://microsoft.github.io/BestPractice_Deploy-Scripts/entra/) | Candidate; release authorization required |
 
 > 📖 **Full documentation site:** <https://microsoft.github.io/BestPractice_Deploy-Scripts/>
 > — searchable HTML version of every product's docs, with sidebar
@@ -28,10 +31,8 @@ Common requirements across all toolkits:
   <https://aka.ms/PowerShell-Release>.
 * **Tenant admin credentials** with the appropriate role(s) for the product
   being deployed (see each product's README for the exact role mapping).
-* **Required PowerShell modules** — the toolkits auto-detect missing modules
-  and offer to install them from PSGallery on first run. Pass
-  `-AutoInstallModules` to install silently, or install manually beforehand
-  using the commands listed in each product's README.
+* **Required PowerShell modules**: follow the selected product's README.
+  Use `-AutoInstallModules` only where the product documents support for it.
 
 For the full prerequisite list (licensing, admin roles, modules) for the
 Purview toolkit, see [`Products/Purview/README.md`](Products/Purview/README.md#prerequisites).

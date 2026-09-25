@@ -55,12 +55,27 @@ The framework breaks the deployment into **seven phases** across three stages:
 
 | Stage | Phases | What it means |
 |---|---|---|
-| 🟡 **Pre-deployment** | 0 · Prepare | Scope, prerequisites, pilot plan, customer change-management — *no tenant changes yet*. |
+| 🟡 **Pre-deployment** | 0 · Prepare | Scope, prerequisites, pilot plan, customer change-management, and offline Deployment Plan review. No tenant changes yet. |
 | 🔵 **Deployment** | 1 · Connect → 2 · Assess → 3 · Configure → 4 · Soak &amp; Simulate | The app run. Zero-Trust connect, license-aware gating, idempotent baseline, and **DLP created in simulation mode** with zero user impact. |
 | 🟢 **Post-deployment** | 5 · Promote → 6 · Adopt &amp; Operate | The Day-30 human gate that promotes DLP from simulation to enforcement, then end-user adoption and ongoing operation. |
 
 Click any phase in the framework to expand **what happens**, **how the app does
 it** (the method), the **safety gate**, and the **rollback path**.
+
+At run start, the toolkit writes an offline Deployment Plan before
+authentication. Its HTML and JSON files summarize config intent, compare
+actions with the supplied Good, Better, and Best SMB guide, and retain the
+Microsoft Learn Lightweight guide as a separate supporting reference. The
+short plan reference identifies one artifact pair. The deterministic
+fingerprint identifies equivalent intent. The plan does not inspect the tenant
+or replace the tenant-aware `-WhatIf` review. Its JSON also carries a sanitized
+intended-state snapshot as a stable handoff artifact for the dependent
+tenant-validation feature. That feature is not an available operator workflow
+until its stacked PR is reconciled with the finalized schema. The snapshot uses
+`Microsoft365Copilot` for the documented public Copilot destination, records
+privacy-safe classes and digests for custom AI locations, records only supported
+retention destinations as deployable scope, records unsupported destinations
+separately, and rejects invalid built-in label signatures before authentication.
 
 ## The signature method
 
@@ -85,3 +100,4 @@ docs:
 - [DLP Simulation Exit Runbook](dlp-simulation-exit-runbook/) — the Day-30 promotion gate.
 - [Retention Default — Risk Note](retention-default-risk/) — before you pass `-ApplyRetention`.
 - [End-User Adoption Guide](end-user-adoption-guide/) — the T-7 / T-0 / T+30 comms.
+- [Configuration Validation](configuration-validation/): read-only post-deployment readback against a Deployment Plan.

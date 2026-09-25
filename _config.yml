@@ -38,6 +38,23 @@ aux_links:
 include:
   - Products
 exclude:
+  # Source-package files that must not become documentation pages.
+  - "Products/*/Tests"
+  - "Products/*/Reports"
+  - "Products/*/Modules"
+  - "Products/*/Config"
+  - "Products/*/References"
+  - "Products/*/AdHoc"
+  - "Products/*/Examples"
+  - "**/Deploy-*-Plan-*.html"
+  - "**/Deploy-*-Plan-*.json"
+  - "**/Test-PurviewTenantConfiguration-*.html"
+  - "**/Test-PurviewTenantConfiguration-*.json"
+  - "**/*.docx"
+  - "Plans"
+  - "docs"
+  - "scripts"
+  - "AGENTS.md"
   # Runtime PowerShell — never part of the docs site.
   - "**/*.ps1"
   - "**/*.psd1"

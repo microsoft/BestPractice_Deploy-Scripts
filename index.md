@@ -23,9 +23,9 @@ tenants — by partners/MSPs and in-house IT teams alike.
 | Product | Toolkit | Status |
 |---|---|---|
 | [Microsoft Purview](purview/) — Data Security baseline (license-aware: Business Premium and up) | `Products/Purview/` | ✅ Available |
-| Microsoft Entra | `Products/Entra/` | 🔜 Planned |
-| Microsoft Intune | `Products/Intune/` | 🔜 Planned |
-| Microsoft Defender | `Products/Defender/` | 🔜 Planned |
+| [Microsoft Entra](entra/) — Conditional Access baseline (report-only, break-glass safe) | `Products/Entra/` | Candidate; release authorization required |
+| [Microsoft Intune](intune/) — device management & enrollment baseline | `Products/Intune/` | Candidate; release authorization required |
+| [Microsoft Defender](defender/) - read-only default with pilot-validated ASR Audit configuration | `Products/Defender/` | Candidate; release authorization required |
 
 > 🗺️ **See the method at a glance:** the
 > [**Purview Deployment Framework**](purview/deployment-framework/) is an
@@ -59,13 +59,41 @@ across all of them:
   PS 7's AppDomain. macOS and Linux are not supported.
 * **Tenant admin credentials** with the appropriate role(s) for the
   product being deployed (see each product's page for the exact role map).
-* **Required PowerShell modules** — the toolkits auto-detect missing
-  modules and offer to install them from PSGallery on first run. Pass
-  `-AutoInstallModules` to install silently.
+* **Required PowerShell modules** - each product documents its supported
+  installation path. Do not assume `-AutoInstallModules` is available unless
+  that product's documentation explicitly says so.
+
+### Shared delegated Graph authentication
+
+Purview, Entra, and Intune use the same delegated Microsoft Graph operator
+flow. Supply `-TenantAdminUpn` for a direct tenant run, or add
+`-DelegatedOrganization` to target a GDAP customer tenant. Each product
+connects Graph once per run, reuses a cached context only when its account,
+scopes, and tenant match, and verifies live tenant identity before setup.
+
+Each product still requests only its own configured Graph scopes. Use
+`-AutoInstallModules` for documented module installation. `-NonInteractive`
+suppresses toolkit prompts but does not enable app-only authentication or
+guarantee a prompt-free first sign-in.
 
 ---
 
 ## Quick start
+
+**Trying Intune?** Start with the
+[Intune first-run guide](Products/Intune/README.md#first-time-here-start-with-a-preview).
+It leads from prerequisites to a read-only preview, then to pilot group setup,
+separate high-risk stages, and troubleshooting. A successful preview does not
+prove that tenant writes or recovery have been validated.
+
+**Trying Entra?** Use the
+[Entra first-run guide](Products/Entra/README.md#first-time-here-start-with-a-preview)
+for an assessment without tenant changes, then the
+[operator guide](Products/Entra/docs/Operator-Guide.md) for emergency access,
+pilot scope, and approval gates. A blocked first run or indeterminate health
+verdict needs review, not removal of existing protection.
+
+For a Purview preview:
 
 ```powershell
 # Clone the repo, then run the toolkit for the product you want to configure.

@@ -617,10 +617,37 @@
         <code>DlpStartInSimulation = $false</code> in the config to enforce immediately.</p>
     </div>
     <div class="card off">
+      <h3>Deployment Plan HTML &amp; JSON <span class="tag off">Before sign-in</span></h3>
+      <p>Each invocation writes an offline plan from config and switches. It includes fingerprints,
+        action intent, the supplied Good / Better / Best SMB guide comparison, and a separate
+        Microsoft Learn supporting reference. A short plan reference identifies the HTML and JSON
+        pair. The JSON carries a sanitized intended-state snapshot for a dependent stacked
+        tenant-validation feature. It remains private customer-sensitive evidence because configured
+        names needed for matching can appear. The snapshot uses the canonical
+        <code>Microsoft365Copilot</code> token for the public Copilot location, opaque digests for
+        custom AI locations, records unsupported retention destinations separately, and rejects malformed
+        built-in label signatures before sign-in.
+        The plan does not inspect tenant state or declare compliance.
+        The Action Preview labels the guide tiers as
+        Deployment Priority Level values: Priority 1 (Good), Priority 2 (Better), and Priority 3
+        (Best), and includes a closed explanation panel for intent, priority, and comparison terms.
+        Good includes audit, baseline labels, container and SharePoint/OneDrive label enablement,
+        and core DLP; Better adds Exchange retention; Best adds advanced DLP, auto-labeling,
+        encryption, custom SITs, and DSPM. Unassigned capabilities are labeled as toolkit
+        extensions.</p>
+    </div>
+    <div class="card off">
+      <h3>Configuration Validation HTML &amp; JSON <span class="tag off">Separate, read-only</span></h3>
+      <p><code>Test-PurviewTenantConfiguration.ps1</code> is a separate command you run later. It reads the
+        tenant and compares it with schema 1.2 intended state, or runs a guide-only assessment, reporting each action as Matched, Drift,
+        Not evaluated, Informational or Collection failed. It changes nothing and it is not a
+        compliance assessment. It also refuses a Graph token with resource permissions beyond its two documented read scopes; retry from a fresh PowerShell session first, then use an approved isolated public client if the shared Graph client still returns broader consent.</p>
+    </div>
+    <div class="card off">
       <h3>HTML &amp; JSON report <span class="tag off">Every run</span></h3>
       <p>Each run writes <code>Deploy-PurviewBestPractice-Report-&lt;timestamp&gt;.html</code> and a
-        machine-readable <code>.json</code> sidecar next to the script. Forward the HTML to the
-        customer / project manager as evidence.</p>
+        machine-readable <code>.json</code> sidecar to the selected output location. This separate
+        report records what the tenant deployment actually did.</p>
     </div>
     <div class="card off">
       <h3>Secrets stripped <span class="tag off">Always</span></h3>

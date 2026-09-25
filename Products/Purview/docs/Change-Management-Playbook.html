@@ -155,6 +155,7 @@
         <li><b>Pick a pilot mailbox / site</b> for retention &amp; DLP simulation review.<span class="who cust">Deploy + business</span></li>
         <li><b>Schedule the deploy window AND the day-30 review</b> in the same calendar invite.<span class="who">Deploy team</span></li>
         <li><b>Draft user comms</b> — sent the day before deploy.<span class="who">Deploy team</span></li>
+        <li><b>Review the offline Deployment Plan</b> generated before authentication. Confirm scope, opt-ins, conditional licensing, and Good / Better / Best guide coverage.<span class="who">Deploy team + reviewer</span></li>
       </ul>
       <div class="panel">
         <h3>Decisions to lock before you run the script</h3>
@@ -175,6 +176,7 @@
       <h2>Day-of deploy</h2>
       <p class="sub">Preview, apply during the agreed window, and verify simulation mode before anyone notices.</p>
       <ul class="acts">
+        <li>Save the <b>Deployment Plan HTML + JSON</b> written before authentication. Keep the plan reference, sanitized intended-state snapshot, primary SMB tier, and supporting Microsoft Learn comparisons. It describes config intent, not tenant state.</li>
         <li>Run with <b><code>-WhatIf</code> first</b>; capture the full transcript.</li>
         <li><b>Diff</b> the preview against the Phase 0 inventory — nothing unexpected created/adopted.</li>
         <li>Run in <b>apply mode</b> during the agreed window.</li>

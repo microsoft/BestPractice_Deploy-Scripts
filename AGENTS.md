@@ -8,8 +8,8 @@ last-reviewed: 2026-09-23
 
 This is the master entry point for humans and coding agents working on
 SMBBestPracticeTool: repeatable, idempotent PowerShell automation for Microsoft
-365 best-practice configurations. Microsoft Purview is the currently shipped
-product. Read the linked guidance before editing; each topic has one owner below.
+365 best-practice configurations. Each product's README defines its scope
+and release status. Read the linked guidance before editing; each topic has one owner below.
 
 ## Context and verification
 

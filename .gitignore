@@ -58,3 +58,10 @@ Desktop.ini
 *.pem
 *.key
 *.snk
+
+# Generated tenant evidence across all products; never publish.
+Products/**/Reports/
+**/Deploy-*-Plan-*.html
+**/Deploy-*-Plan-*.json
+**/Test-PurviewTenantConfiguration-*.html
+**/Test-PurviewTenantConfiguration-*.json

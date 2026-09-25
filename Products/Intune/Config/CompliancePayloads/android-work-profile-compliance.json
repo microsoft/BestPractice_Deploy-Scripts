@@ -1,0 +1,36 @@
+{
+  "@odata.type": "#microsoft.graph.androidWorkProfileCompliancePolicy",
+  "displayName": "Android Work Profile - Baseline security compliance",
+  "description": "Minimum security configuration for personal Android devices that access work or school data (guide task 7).",
+  "scheduledActionsForRule": [
+    {
+      "ruleName": "PasswordRequired",
+      "scheduledActionConfigurations": [
+        {
+          "actionType": "block",
+          "gracePeriodHours": 0,
+          "notificationTemplateId": ""
+        }
+      ]
+    }
+  ],
+  "passwordRequired": true,
+  "passwordMinimumLength": 6,
+  "passwordRequiredType": "numericComplex",
+  "passwordMinutesOfInactivityBeforeLock": 5,
+  "securityPreventInstallAppsFromUnknownSources": true,
+  "securityDisableUsbDebugging": true,
+  "securityRequireVerifyApps": false,
+  "deviceThreatProtectionEnabled": false,
+  "deviceThreatProtectionRequiredSecurityLevel": "unavailable",
+  "advancedThreatProtectionRequiredSecurityLevel": "unavailable",
+  "securityBlockJailbrokenDevices": true,
+  "osMinimumVersion": "9.0",
+  "storageRequireEncryption": true,
+  "securityRequireSafetyNetAttestationBasicIntegrity": true,
+  "securityRequireSafetyNetAttestationCertifiedDevice": true,
+  "securityRequireGooglePlayServices": true,
+  "securityRequireUpToDateSecurityProviders": true,
+  "securityRequireCompanyPortalAppIntegrity": true,
+  "securityRequiredAndroidSafetyNetEvaluationType": "hardwareBacked"
+}

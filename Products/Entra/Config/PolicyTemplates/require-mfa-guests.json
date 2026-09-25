@@ -1,0 +1,19 @@
+{
+  "displayName": "Require multifactor authentication for guest access",
+  "grantControls": {
+    "builtInControls": "mfa",
+    "operator": "OR"
+  },
+  "state": "enabled",
+  "conditions": {
+    "applications": {
+      "includeApplications": "All"
+    },
+    "clientAppTypes": "all",
+    "users": {
+      "includeGroups": [
+        "{ID}"
+      ]
+    }
+  }
+}

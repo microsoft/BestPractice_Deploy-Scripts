@@ -411,7 +411,7 @@ if ($settings.EnableLabelCoAuth) {
     }
 } else {
     # SKIP-PATH SENTINEL: surface every disposition in the report
-    # (Skills/_CONVENTIONS.md §3 / Skills/Purview/_CONVENTIONS.md §1).
+    # Record skipped operations as well as applied changes.
     # If a future change silently reverts the opt-in gate (e.g. flips the
     # config default back on or stops honouring -EnableLabelCoAuthoring),
     # the absence of this Skipped entry across BP runs will tell us.

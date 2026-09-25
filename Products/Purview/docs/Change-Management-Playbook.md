@@ -63,6 +63,7 @@ visually above.
 | 5 | **Pick a pilot mailbox / pilot site** for retention and DLP simulation review | Deploy + business | Names and UPNs go in the pre-deploy doc |
 | 6 | **Schedule the deploy window** and the day-30 review meeting in the same calendar invite | Deploy team | Both dates booked before the deploy |
 | 7 | **Draft user comms** (see [Comms templates](#comms-templates)) | Deploy team | Sent the day before the deploy |
+| 8 | **Review the offline Deployment Plan** generated before authentication | Deploy team + reviewer | Confirms configured scope, opt-ins, conditional licensing, and Good, Better, and Best guide coverage without claiming tenant state |
 
 ### Decisions to lock before you run the script
 
@@ -81,13 +82,14 @@ visually above.
 
 | # | Action | Output |
 |---|--------|--------|
-| 1 | Run with **`-WhatIf` first**, capture full transcript | A complete preview of every label / DLP / retention object that *would* be created |
-| 2 | Diff the `-WhatIf` output against the customer's existing Purview state from Phase 0 | Sanity-check that nothing unexpected is created or adopted |
-| 3 | Run in **apply mode** during the agreed window | Live deploy |
-| 4 | Save the deploy log + preflight banner to the customer record | Audit trail of what was changed, when, by whom |
-| 5 | Open the **Purview portal** → Information protection → Labels and DLP → confirm objects exist and are stamped `[Managed by SMBTool Purview Toolkit]` | Visual confirmation |
-| 6 | Verify **DLP simulation mode** by opening one DLP policy in the portal — Mode should read "Test with notifications off" | Confirms zero user impact on day one |
-| 7 | Send the "deploy complete" comms (see [Comms templates](#comms-templates)) | Customer admins know what to expect tomorrow |
+| 1 | Save the generated **Deployment Plan HTML + JSON** before authentication | One plan reference, sanitized intended state, fingerprints, primary SMB tier comparison, and supporting Microsoft Learn comparison |
+| 2 | Run with **`-WhatIf` first**, capture full transcript | A tenant-aware preview of state-changing cmdlets |
+| 3 | Diff the `-WhatIf` output against the customer's existing Purview state from Phase 0 | Sanity-check that nothing unexpected is created or adopted |
+| 4 | Run in **apply mode** during the agreed window | Live deploy |
+| 5 | Save the deploy log + preflight banner to the customer record | Audit trail of what was changed, when, by whom |
+| 6 | Open the **Purview portal** → Information protection → Labels and DLP → confirm objects exist and are stamped `[Managed by SMBTool Purview Toolkit]` | Visual confirmation |
+| 7 | Verify **DLP simulation mode** by opening one DLP policy in the portal. Mode should read "Test with notifications off" | Confirms zero user impact on day one |
+| 8 | Send the "deploy complete" comms (see [Comms templates](#comms-templates)) | Customer admins know what to expect tomorrow |
 
 ### Common day-of surprises
 

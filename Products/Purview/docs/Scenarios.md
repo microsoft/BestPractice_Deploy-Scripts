@@ -44,6 +44,14 @@ expanding when **E5 / Purview Suite** licensing is present. It covers
 **five scenarios**, all idempotent (safe to re-run) and DLP starts in
 **simulation mode** by default so nothing breaks on day one.
 
+Before sign-in, the script writes a Deployment Plan that maps the selected
+configuration to the supplied Good, Better, and Best SMB recommendations. The
+plan keeps Microsoft Learn as a separate supporting reference and does not read
+tenant state. Its JSON sidecar carries the Plan ID, short plan reference, and
+sanitized intended-state snapshot prepared for the dependent tenant-validation
+feature. That stacked feature must be reconciled with the finalized schema
+before it is an available operator workflow.
+
 | # | Scenario | Default behaviour | Customer impact |
 |---|----------|-------------------|-----------------|
 | 1 | **Foundational tenant settings** | Enables audit log, SharePoint label integration, PDF labels | Invisible to end users |
@@ -322,7 +330,10 @@ automatically. Use `-BPOnly` to hard-block any E5-only feature, or
 | **Premium audit** (1-yr retention, `SearchQueryInitiated`) | ❌ | ✅ via `-EnablePremiumAudit` | ✅ |
 | **Endpoint DLP** (devices) | ❌ blocked by `-BPOnly` | ✅ created in simulation | ✅ |
 | **Copilot DLP** (block Copilot for HC) | ❌ blocked by `-BPOnly` | ✅ default ON (opt-out via `-SkipAIControls`) | ✅ |
-| DLP for Defender for Cloud Apps / on-prem / Power BI | ❌ | ✅ if added to config | ✅ |
+| DLP for Defender for Cloud Apps / on-prem / Power BI | Not implemented | Not implemented | Not implemented |
+
+Entries for these unsupported workloads are skipped with structured evidence.
+Adding them to config or upgrading licensing does not create the policy.
 
 ### What changes when a customer upgrades from Business Premium to E5
 
