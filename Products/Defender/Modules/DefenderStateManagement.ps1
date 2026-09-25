@@ -72,11 +72,11 @@ function ConvertTo-DefenderComparableValue {
     if ($Value -is [System.Collections.IEnumerable] -and $Value -isnot [string]) {
         return @($Value | ForEach-Object { ConvertTo-DefenderComparableValue -Value $_ })
     }
+if ($Value -is [string]) { return $Value }
     $properties = @($Value.PSObject.Properties | Where-Object {
         $_.MemberType -in @('NoteProperty', 'Property')
     })
     if ($properties.Count -gt 0) {
-        $result = [ordered]@{}
         foreach ($property in ($properties | Sort-Object Name)) {
             $result[$property.Name] = ConvertTo-DefenderComparableValue -Value $property.Value
         }
