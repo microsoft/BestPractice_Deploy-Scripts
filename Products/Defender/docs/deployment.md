@@ -65,6 +65,27 @@ Device code flow does not bypass delegated consent, licensing, workload
 availability, or the Defender guided-only safety boundary. To select this path
 for the orchestrator, add `-UseDeviceAuthentication` to the deployment command.
 
+### Operator and delegated-customer verification
+
+The toolkit passes the explicit `-TenantId` to Graph when supplied. Otherwise
+it uses the `-DelegatedOrganization` customer domain, or the administrator UPN
+domain for a direct tenant run. For GDAP, supply the customer domain and sign
+in with the requested partner operator. An explicit tenant ID must identify
+the same customer whose domain is being verified.
+
+Cache reuse requires the requested account, delegated authentication and all
+operation-scoped permissions. The connected organization's ID and verified
+domains must also confirm the requested tenant. A different account or tenant
+causes a fresh connection; an unreadable tenant check fails closed.
+After sign-in, the actual Graph account must match `-TenantAdminUpn`.
+Preflight checks that identity again before recording successful capability
+evidence. No tenant configuration changes occur during these checks.
+
+The scopes and GDAP requirements are unchanged. Confirm effective roles and
+consent in an approved pilot; offline tests do not establish customer access.
+The target is passed through the documented
+[`Connect-MgGraph` tenant parameter](https://learn.microsoft.com/powershell/module/microsoft.graph.authentication/connect-mggraph?view=graph-powershell-1.0).
+
 The default path is read-only. `-IncludeHighRisk`, `-RollbackAcknowledged`,
 pilot-group identifiers, and the relevant category switches are required for
 future high-impact work; they do not authorize the current guided-only operations.

@@ -55,7 +55,7 @@ default to empty unless a default is stated.
 |---|---|---|
 | `-TenantAdminUpn` | Required | Sign-in UPN used to derive and verify the expected tenant domain. |
 | `-TenantId` | Optional GUID | Targets a tenant explicitly. Required with certificate arguments. |
-| `-DelegatedOrganization` | Optional domain | Targets the Exchange Online customer organization for delegated administration. |
+| `-DelegatedOrganization` | Optional domain | Targets the customer organization for delegated Graph and Exchange Online administration. Graph uses this domain when no explicit `-TenantId` is supplied. |
 | `-ConfigPath` | `Config\DefenderConfig.psd1` | Uses an alternate Defender configuration data file. |
 | `-UseDeviceAuthentication` | Off | Uses delegated device code instead of the default browser flow for Graph and Exchange Online. |
 | `-AutoInstallModules` | Off | Allows the connection helper to install missing supported PowerShell modules. |
@@ -96,6 +96,13 @@ not bypass operation status, permission, ownership, readback, or recovery
 gates.
 
 ## Safe preview
+
+Graph authentication is bound to the requested operator and tenant. An explicit
+`-TenantId` takes precedence; otherwise the target is `-DelegatedOrganization`
+or the domain in `-TenantAdminUpn`. Cached sessions must match the operator,
+delegated authentication mode, required scopes and verified tenant before
+reuse. Selecting another account during sign-in stops the run before deployment.
+This does not grant GDAP roles or consent; those remain operator prerequisites.
 
 ```powershell
 cd Products\Defender

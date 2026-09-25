@@ -24,6 +24,12 @@ Both paths issue delegated tokens and require the same operator consent and
 tenant authorization. Device code flow is an authentication fallback; it does
 not provide application permissions or make a guided-only operation writable.
 
+Delegated sessions must belong to the operator supplied as `-TenantAdminUpn`,
+not just an account in the same tenant. For GDAP, Graph authentication targets
+the explicit customer tenant ID or the `-DelegatedOrganization` domain.
+The connected organization must verify that domain. The toolkit does not
+grant GDAP access, change roles, or add consent to make a mismatch pass.
+
 The MDO/EOP module establishes its own delegated Exchange Online session;
 Graph authentication does not establish that session. Current-state reads do
 not require setter permission. Immediately before an approved write, the

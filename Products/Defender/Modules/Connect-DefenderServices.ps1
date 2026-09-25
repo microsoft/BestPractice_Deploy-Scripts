@@ -136,10 +136,26 @@ function Connect-DefenderExchangeOnline {
     }
 }
 
+function Assert-DefenderGraphAccount {
+    [CmdletBinding()]
+    param(
+        [AllowNull()] $GraphContext,
+        [Parameter(Mandatory)] [string] $TenantAdminUpn
+    )
+
+    if (-not $GraphContext -or $GraphContext.AuthType -ne 'Delegated' -or
+        [string]::IsNullOrWhiteSpace([string] $GraphContext.Account) -or
+        $GraphContext.Account -ine $TenantAdminUpn) {
+        throw 'Microsoft Graph is not authenticated as the requested delegated operator. Reconnect with TenantAdminUpn before continuing.'
+    }
+}
+
 function Connect-DefenderGraph {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)] [string[]] $Scopes,
+        [Parameter(Mandatory)] [string] $ExpectedDomain,
+        [Parameter(Mandatory)] [string] $TenantAdminUpn,
         [string] $TenantId,
         [string] $ClientId,
         [string] $CertificateThumbprint,
@@ -164,17 +180,27 @@ function Connect-DefenderGraph {
             throw 'App-only Microsoft Graph authorization is not enabled for the Defender least-privilege consent model; certificate-based runs are blocked before connection until operation-level application permission evidence is approved.'
         }
         $existingContext = Get-MgContext -ErrorAction SilentlyContinue
+        $contextAccountMatches = $existingContext -and
+            $existingContext.AuthType -eq 'Delegated' -and
+            $existingContext.Account -ieq $TenantAdminUpn
         $contextTenantMatches = [string]::IsNullOrWhiteSpace($TenantId) -or
             ($existingContext -and $existingContext.TenantId -eq $TenantId)
         $missingScopes = @($Scopes | Where-Object {
                 -not $existingContext -or @($existingContext.Scopes) -notcontains $_
             })
-        if ($existingContext -and $contextTenantMatches -and $missingScopes.Count -eq 0) {
-            Add-DefenderRunLogEntry -Module 'Connect-DefenderServices' `
-                -Action 'Connect-MgGraph' -Status 'Succeeded' `
-                -Detail 'Existing Microsoft Graph context reused.'
+        if ($contextAccountMatches -and $contextTenantMatches -and $missingScopes.Count -eq 0) {
+            $response = Invoke-WithTransientRetry -Description 'Verify cached Defender tenant' -Action {
+                Invoke-DefenderGraphRequest -Method GET `
+                    -Uri 'https://graph.microsoft.com/v1.0/organization?$select=id,verifiedDomains'
+            }
+            $organizations = @($response.value)
+            $contextTenantMatches = $organizations.Count -eq 1 -and
+                -not [string]::IsNullOrWhiteSpace([string] $existingContext.TenantId) -and
+                $organizations[0].id -eq $existingContext.TenantId -and
+                @($organizations[0].verifiedDomains | ForEach-Object name) -icontains $ExpectedDomain
         }
-        else {
+        $reuseContext = $contextAccountMatches -and $contextTenantMatches -and $missingScopes.Count -eq 0
+        if (-not $reuseContext) {
             if ($existingContext) {
                 Disconnect-MgGraph -ErrorAction SilentlyContinue | Out-Null
             }
@@ -184,17 +210,23 @@ function Connect-DefenderGraph {
                 NoWelcome = $true
                 ErrorAction = 'Stop'
             }
-            if (-not [string]::IsNullOrWhiteSpace($TenantId)) {
-                $connectParameters.TenantId = $TenantId
-            }
+            $connectParameters.TenantId = if (-not [string]::IsNullOrWhiteSpace($TenantId)) {
+                $TenantId
+            } else { $ExpectedDomain }
             if ($UseDeviceAuthentication) {
                 $connectParameters.UseDeviceAuthentication = $true
             }
-            Connect-MgGraph @connectParameters
-            Add-DefenderRunLogEntry -Module 'Connect-DefenderServices' `
-                -Action 'Connect-MgGraph' -Status 'Succeeded' `
-                -Detail 'Microsoft Graph connection established.'
+            Connect-MgGraph @connectParameters | Out-Null
         }
+        $verifiedContext = Get-MgContext -ErrorAction Stop
+        Assert-DefenderGraphAccount -GraphContext $verifiedContext -TenantAdminUpn $TenantAdminUpn
+        if (-not [string]::IsNullOrWhiteSpace($TenantId) -and $verifiedContext.TenantId -ine $TenantId) {
+            throw 'Microsoft Graph did not connect to the explicitly requested tenant ID.'
+        }
+        Add-DefenderRunLogEntry -Module 'Connect-DefenderServices' `
+            -Action 'Connect-MgGraph' -Status 'Succeeded' `
+            -Detail $(if ($reuseContext) { 'Verified Microsoft Graph context reused for the requested operator and tenant.' }
+                else { 'Microsoft Graph connection established for the requested operator.' })
     }
     catch {
         $status = Get-DefenderHttpStatusCode -ErrorRecord $_
@@ -278,7 +310,17 @@ function Get-DefenderTenantIdentity {
 
 $tenantIdentity = $null
 if ($ConnectGraph) {
-    Connect-DefenderGraph -Scopes $GraphScopes -TenantId $TenantId `
+    $expectedDomain = if ($DelegatedOrganization) {
+        $DelegatedOrganization
+    }
+    elseif ($TenantAdminUpn -match '@(?<domain>[^@]+)$') {
+        $Matches.domain
+    }
+    else {
+        throw 'Unable to derive an expected tenant domain from the supplied identity.'
+    }
+    Connect-DefenderGraph -Scopes $GraphScopes -TenantId $TenantId -ExpectedDomain $expectedDomain `
+        -TenantAdminUpn $TenantAdminUpn `
         -ClientId $ClientId -CertificateThumbprint $CertificateThumbprint `
         -NonInteractive:$NonInteractive `
         -UseDeviceAuthentication:$UseDeviceAuthentication
@@ -287,6 +329,7 @@ if ($ConnectGraph) {
         throw 'Microsoft Graph context is not available after connection.'
     }
     try {
+        Assert-DefenderGraphAccount -GraphContext $graphContext -TenantAdminUpn $TenantAdminUpn
         $consent = Test-DefenderGraphConsent -GraphContext $graphContext `
             -RequiredDelegatedScopes $GraphScopes
     }
@@ -300,15 +343,6 @@ if ($ConnectGraph) {
     Add-DefenderRunLogEntry -Module 'Connect-DefenderServices' `
         -Action 'PermissionCheck' -Status 'Succeeded' `
         -Detail "Graph permission disposition: $($consent.Status)."
-    $expectedDomain = if ($DelegatedOrganization) {
-        $DelegatedOrganization
-    }
-    elseif ($TenantAdminUpn -match '@(?<domain>[^@]+)$') {
-        $Matches.domain
-    }
-    else {
-        throw 'Unable to derive an expected tenant domain from the supplied identity.'
-    }
     $tenantIdentity = Get-DefenderTenantIdentity `
         -ExpectedDomain $expectedDomain -TenantAdminUpn $TenantAdminUpn
 }

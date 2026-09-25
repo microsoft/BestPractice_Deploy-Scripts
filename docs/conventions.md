@@ -36,6 +36,7 @@ not execute deployment scripts. Run the offline regression checks separately:
 ```powershell
 pwsh -NoProfile -File .\scripts\Test-IdentityReviewFixes.ps1
 pwsh -NoProfile -File .\scripts\Test-IntuneReviewFixes.ps1
+pwsh -NoProfile -File .\scripts\Test-DefenderConnectionGuards.ps1
 ```
 
 These plain PowerShell checks use synthetic Graph responses and require no

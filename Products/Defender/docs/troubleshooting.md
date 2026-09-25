@@ -25,11 +25,20 @@ credential stores or Windows work-account registrations without first
 identifying the owning client and impact.
 
 If you authenticate with `Connect-MgGraph` in the same process before starting
-the orchestrator, a matching tenant and delegated scope set are reused; the
-orchestrator does not prompt a second time. A different tenant or incomplete
-scope set causes the orchestrator to disconnect that process-wide Graph
-context before requesting a new sign-in. Run the toolkit in a dedicated
+the orchestrator, the requested operator, delegated authentication mode,
+required scopes and verified tenant must all match before that context is
+reused. A different account or tenant, or an incomplete scope set, causes the
+orchestrator to disconnect that process-wide Graph context before requesting
+a new sign-in. A tenant verification read failure stops the run. Run the toolkit in a dedicated
 PowerShell process when another task must retain its existing Graph session.
+
+For GDAP, supply the customer domain with `-DelegatedOrganization`. Graph
+uses it as the authentication target unless an explicit customer `-TenantId`
+was provided. The live organization must still verify the customer domain.
+If sign-in completes with a different account than `-TenantAdminUpn`, the run
+stops instead of reporting that operator as authenticated. Select the
+requested account in a fresh sign-in; do not broaden permissions to bypass
+an account or tenant mismatch.
 
 **Device code returns `AADSTS70011` (`invalid_scope`):** retry with an explicit
 `-TenantId` and pass scopes as an array or comma-separated values. Test with

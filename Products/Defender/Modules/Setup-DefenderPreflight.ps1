@@ -14,7 +14,8 @@ param(
 function Test-DefenderApiCapability {
     [CmdletBinding()]
     param(
-        [Parameter(Mandatory)] [hashtable] $ApiDefinition
+        [Parameter(Mandatory)] [hashtable] $ApiDefinition,
+        [Parameter(Mandatory)] [string] $TenantAdminUpn
     )
 
     $missing = @($ApiDefinition.RequiredCommands | Where-Object {
@@ -28,6 +29,7 @@ function Test-DefenderApiCapability {
     if (-not $graphContext) {
         throw 'Microsoft Graph context is not available after connection.'
     }
+    Assert-DefenderGraphAccount -GraphContext $graphContext -TenantAdminUpn $TenantAdminUpn
     $account = Protect-DefenderIdentity -Value ([string] $graphContext.Account)
     Add-DefenderRunLogEntry -Module 'Setup-DefenderPreflight' `
         -Action 'ApiCapability' -Status 'Succeeded' `
@@ -104,7 +106,7 @@ try {
     # current runspace. The orchestrator invokes this script as a separate
     # script invocation, not as a child PowerShell process.
     . $connectScript @connectArgs | Out-Null
-    Test-DefenderApiCapability -ApiDefinition $Config.Api
+    Test-DefenderApiCapability -ApiDefinition $Config.Api -TenantAdminUpn $TenantAdminUpn
     Write-DefenderWorkloadCapabilities -Capabilities $Config.WorkloadCapabilities
 
     foreach ($item in @($Config.BestPracticeItems)) {

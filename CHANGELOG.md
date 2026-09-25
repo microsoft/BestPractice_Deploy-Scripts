@@ -68,6 +68,11 @@ landed but not yet been tagged in a release appear under **Unreleased**.
 
 ### Fixed
 
+- [Defender] Target Graph sign-in at the delegated customer and verify the
+  requested operator before reusing a cached session or reporting preflight
+  success. Explicit tenant IDs retain precedence; permissions and blocked
+  app-only authentication remain unchanged.
+
 - [Entra] Target the guest MFA policy at guests and external users instead
   of all members of the pilot group. New policies remain report-only by
   default. Existing guest policies require manual migration review, and
