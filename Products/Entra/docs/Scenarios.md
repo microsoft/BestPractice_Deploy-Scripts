@@ -57,7 +57,7 @@ guarantee against lockout or a replacement for existing enforcing protection.
 | Block legacy authentication | Legacy protocols (IMAP/POP/SMTP auth) bypass MFA; blocking them closes the most common MFA-evasion path. |
 | Require MFA for Azure management | Protects the Azure control plane (portal, CLI, PowerShell, ARM) with MFA. |
 | Require MFA for Microsoft admin portals | Adds MFA in front of the admin portals themselves. |
-| Require MFA for guest access | Applies MFA to external/guest users acting in your tenant. |
+| Require MFA for guest access | Targets all guests and external users acting in your tenant, not workforce pilot-group members. Report-only by default; the pilot group does not narrow this scope. |
 | Block access from unknown/unsupported device platforms | Denies platforms you have not chosen to support, shrinking the attack surface. |
 | No persistent browser session | Prevents indefinitely "stay signed in" sessions on unmanaged browsers. |
 | Require app protection policy | Uses `compliantApplication` for Android/iOS. Requires compatible applications and assigned Intune app-protection policies; the Entra template does not deploy those policies. |
@@ -84,7 +84,10 @@ exceptions or automatically migrate existing policies.
 Admin MFA and admin-portal MFA target the configured directory roles, not
 pilot-group membership. Azure-management MFA targets all users for that
 application. The pilot group therefore does not limit every policy's scope.
-Existing admin, admin-portal, Azure-management, device-or-MFA and
+Guest MFA uses `GuestsOrExternalUsers` without a group include. Adding the
+pilot group would also target its workforce members, not restrict the guest
+selector to that group.
+Existing guest, admin, admin-portal, Azure-management, device-or-MFA and
 browser-session matches are review-only as well, even with `-AdoptExisting`.
 Review the corrected scope, MFA alternative or session settings before
 manually migrating an existing policy. New-policy readback checks those

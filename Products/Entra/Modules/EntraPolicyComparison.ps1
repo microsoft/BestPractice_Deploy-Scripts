@@ -150,7 +150,7 @@ function Assert-EntraPolicyMigrationConfig {
         if ($reference.Key -in @(
                 'block-device-code-flow', 'protect-security-info-registration', 'require-phishing-resistant-mfa-admins',
                 'no-persistent-browser-session', 'require-mfa-admins', 'require-mfa-admin-portals',
-                'require-mfa-azure-management', 'require-compliant-device-or-mfa')) {
+                'require-mfa-azure-management', 'require-compliant-device-or-mfa', 'require-mfa-guests')) {
             $reviewOnly = Get-EntraPolicyProperty $reference 'ReviewExistingOnly'
             if ($reviewOnly -isnot [bool] -or -not $reviewOnly) {
                 throw "Policy '$($reference.Key)' requires ReviewExistingOnly=true. Existing targeting, grant, session, authentication-flow, registration and strength changes must be reviewed rather than automatically migrated."

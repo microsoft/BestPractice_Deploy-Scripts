@@ -96,7 +96,13 @@ directory roles across the tenant, without adding pilot-group members.
 Azure-management MFA targets all users for that application, even when a
 pilot group is supplied. New policies remain report-only unless you change
 the configured default. Do not treat the pilot switch as a cap on these
-role- or application-scoped policies.
+role-, guest- or application-scoped policies.
+
+Guest MFA selects all guests and external users acting in this tenant through
+`GuestsOrExternalUsers`, not everyone in the pilot group. It does not
+intersect the guest category with pilot membership. New policies remain
+report-only by default. Review external-user MFA readiness and cross-tenant
+trust before separately approving enforcement.
 
 Optional P1 hardening requires method readiness; P2 risk controls remain out
 of scope. App-protection enforcement depends on compatible applications and
@@ -138,13 +144,19 @@ investigate unexpected changes. Existing-policy matches can require manual
 review even when fields match; `-AdoptExisting` does not bypass review-only
 policies or ambiguous matches.
 
-Use the current configuration's `ReviewExistingOnly = $true` for admin MFA,
+Use the current configuration's `ReviewExistingOnly = $true` for guest MFA, admin MFA,
 admin portals, Azure management, device-or-MFA and browser-session policies.
 Old custom references without this gate must be updated before running.
 The toolkit leaves existing matches unchanged, including with adoption.
 Review their effective scope and grants manually before migrating them.
 Browser-session comparisons include the session controls and device filter;
 successful readback is no longer based on policy state alone.
+
+An older guest policy may still target a mixed workforce/guest pilot group.
+The toolkit reports that mismatch and leaves it unchanged, including its
+enforcement state. Review the actual policy ID and approved replacement scope
+with the identity owner; do not disable existing protection or use adoption
+to bypass the migration review.
 
 Enforcement is a separate change after review of report-only sign-ins,
 application compatibility, user readiness, and tested recovery. Do not leave

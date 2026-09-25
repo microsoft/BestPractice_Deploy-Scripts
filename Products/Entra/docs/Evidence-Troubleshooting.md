@@ -125,6 +125,22 @@ create a desktop sign-in window. See the
 
 ## Recover from a partial deployment
 
+### Existing guest MFA policy reports a scope mismatch
+
+The current guest template uses `includeUsers = ["GuestsOrExternalUsers"]`
+without a group include. An older policy targeting the pilot group is not
+equivalent, even if its name says "guest access". The toolkit reports
+`GuidedOnly` and `Readback=Mismatch`, without changing or duplicating it.
+`-AdoptExisting` does not bypass this review boundary. A matching corrected
+policy also remains review-only, not an automatic enforcement approval.
+
+Inspect the existing policy by ID with the identity owner, record its state,
+scope and emergency exclusions, and plan an approved migration. Guest-wide
+scope can include external users outside the pilot group. Keep existing
+protection until replacement coverage and recovery are verified.
+
+### Recovery procedure
+
 There is no automatic rollback. Before apply, privately record the exact
 policy IDs, states, targeting, emergency exclusions, ownership, and any
 tenant-setting values that may change. Reports are redacted evidence, not

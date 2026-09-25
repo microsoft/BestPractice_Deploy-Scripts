@@ -117,6 +117,11 @@ function Test-EntraPolicyCompliant {
         if (((Get-EntraNormalizedSet (Get-EntraPolicyProperty $desiredUsers $field)) -join ',') -ne
             ((Get-EntraNormalizedSet (Get-EntraPolicyProperty $existingUsers $field)) -join ',')) { return $false }
     }
+    foreach ($field in 'includeGuestsOrExternalUsers', 'excludeGuestsOrExternalUsers') {
+        if (-not (Test-EntraManagedPropertiesMatch `
+                -Expected (Get-EntraPolicyProperty $desiredUsers $field) `
+                -Actual (Get-EntraPolicyProperty $existingUsers $field))) { return $false }
+    }
     $desiredPlatforms = Get-EntraPolicyProperty $dc 'platforms'
     $existingPlatforms = Get-EntraPolicyProperty $ec 'platforms'
     foreach ($field in 'includePlatforms', 'excludePlatforms') {
@@ -293,7 +298,7 @@ foreach ($policyRef in @($ca.Policies)) {
     $users = $policy.conditions.users
 
     # Scope all-users-style policies (those the template targets by group) to the
-    # pilot group, or to every user under -AssignTenantWide. Role- and
+    # pilot group, or to every user under -AssignTenantWide. Role-, guest- and
     # app-scoped policies keep their template scope.
     if ($users.ContainsKey('includeGroups') -and @($users.includeGroups).Count -gt 0) {
         if ($tenantWide) {

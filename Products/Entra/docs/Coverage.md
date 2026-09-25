@@ -82,6 +82,22 @@ members rather than limit the roles to the pilot. Azure-management MFA
 explicitly targets all users for the configured application. Review these
 tenant-wide principal selections even when the run supplies a pilot group.
 
+Guest MFA uses `includeUsers = ["GuestsOrExternalUsers"]`, the documented
+Graph v1.0 selector for guests and external users. It contains no group or
+role includes, so a workforce user is not targeted by this policy merely
+because they belong to the pilot group. Its scope is all guests and external
+users acting in the resource tenant, not the intersection with the pilot.
+Report-only remains the creation default and emergency exclusions remain in
+place. Other independently applicable policies can still require workforce MFA.
+
+Guest-policy readback compares the guest selector and rejects unexpected
+groups, roles or structured guest exclusions. Existing group-scoped or
+otherwise same-named guest policies require manual review, even with
+`-AdoptExisting`; their scope, state and customer exceptions are not changed
+automatically. Custom references must retain `ReviewExistingOnly = $true`.
+Guest MFA registration, cross-tenant trust and representative sign-in behavior
+still need an approved pilot before enforcement.
+
 The device-or-MFA template includes `mfa` in its OR grant controls alongside
 `compliantDevice` and `domainJoinedDevice`. Browser-session comparisons check
 the managed session settings and device filter, while ignoring unrelated
@@ -100,6 +116,8 @@ evidence. The identity owner must review targeting, MFA readiness and recovery
 before enforcement. References checked September 25, 2026:
 
 - [Conditional Access user and group assignments](https://learn.microsoft.com/entra/identity/conditional-access/concept-conditional-access-users-groups)
+- [Graph user selectors, including GuestsOrExternalUsers](https://learn.microsoft.com/graph/api/resources/conditionalaccessusers?view=graph-rest-1.0)
+- [Guest and external-user categories](https://learn.microsoft.com/entra/external-id/authentication-conditional-access#assign-conditional-access-policies-to-external-user-types)
 - [Grant controls](https://learn.microsoft.com/graph/api/resources/conditionalaccessgrantcontrols?view=graph-rest-1.0)
 - [Session controls](https://learn.microsoft.com/graph/api/resources/conditionalaccesssessioncontrols?view=graph-rest-1.0)
 
@@ -235,11 +253,7 @@ These are documented rather than half-implemented (no hallucinated APIs):
    issue Temporary Access Passes, deploy guest registration controls or prove
    organization-wide MFA enrollment. Those remain operator prerequisites or
    separately designed controls.
-2. **Guest MFA scope fidelity** — the source guest template targets a group. The
-   more precise pattern targets guest/external user types
-   (`includeGuestsOrExternalUsers`). Documented simplification; a verified guest
-   template is a backlog item.
-3. **Break-glass password handoff** — creating a break-glass account sets a
+2. **Break-glass password handoff**: creating a break-glass account sets a
    random password that is never emitted to evidence; there is no supported way
    to hand the credential to the operator programmatically without logging it.
    The operator resets and stores it out of band (see the break-glass guide). A

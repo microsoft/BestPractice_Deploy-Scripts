@@ -128,14 +128,16 @@ which owns device-enrollment Conditional Access.
   `-PilotGroupId`; tenant-wide is an explicit `-AssignTenantWide` opt-in.
   The admin MFA and admin-portal policies target their configured directory
   roles across the tenant. Azure-management MFA targets all users for that
-  application. These policies are not capped by the pilot group; review their
+  application. Guest MFA targets all guests and external users acting in this
+  tenant, not workforce members of the pilot group. These policies are not
+  capped by the pilot group; review their
   scope and emergency exclusions before creating or enforcing them.
 - **Existing policies.** Current and configured legacy names are matched
   across all result pages; ambiguous matches block creation. The app-protection
   policy is review-only when present, including with `-AdoptExisting`.
   It is not silently repaired, renamed or duplicated.
 
-The corrected admin MFA, admin-portal, Azure-management, device-or-MFA and
+The corrected guest MFA, admin MFA, admin-portal, Azure-management, device-or-MFA and
 browser-session policies also require `ReviewExistingOnly = $true` in custom
 configuration. Existing matches remain unchanged and require manual review,
 including with `-AdoptExisting`. This avoids silently changing the coverage or
@@ -149,6 +151,13 @@ configured session controls and device filter. Missing or changed fields are
 reported as a mismatch, not successful verification. Existing authentication
 strength policies remain manual-review only; ordinary MFA is not substituted
 for phishing-resistant authentication.
+
+Guest MFA uses the documented `includeUsers = ["GuestsOrExternalUsers"]`
+selector without group or role includes. It remains report-only by default.
+The toolkit does not combine a guest selector with the pilot group, because
+Conditional Access includes are a union, not a guest/group intersection.
+Existing group-scoped guest policies are left unchanged for manual migration
+review, including when they are enforcing or `-AdoptExisting` is supplied.
 
 These templates are not a proven one-for-one replacement for Security
 Defaults. Protecting registration does not enroll everyone, and report-only
@@ -218,7 +227,7 @@ does not authorize Conditional Access deployment.
 | Emergency access | Configure verified `ConditionalAccess.BreakGlass.ExcludeUserIds` or `ExcludeGroupIds`. Independently test recovery and keep the emergency-access verification module selected. |
 | Change approval | `-IncludeHighRisk -CustomerApprovalId '<approved-change-reference>'`. Only a hash of the reference enters evidence. |
 | Safety confirmations | `-BreakGlassExclusionsConfirmed -RollbackAcknowledged`. These record operator decisions; they do not configure recovery for you. |
-| Pilot scope | `-PilotGroupId '<entra-group-object-id>'`. Role/app-scoped templates retain their configured targeting; the pilot is not an intersection with privileged roles. |
+| Pilot scope | `-PilotGroupId '<entra-group-object-id>'`. Role-, guest- and app-scoped templates retain their configured targeting; the pilot is not an intersection with privileged roles or guest users. |
 | Live readiness | Verified tenant identity, effective Graph scopes/roles, P1 entitlement and disabled Security Defaults. Disabled is not proof of active replacement protection. |
 
 After an approved Security Defaults transition, or independent confirmation of
@@ -394,5 +403,7 @@ Product-Group ask list, including:
 - **Registration readiness**: the new policy protects registration with MFA,
   but does not enable combined registration, issue Temporary Access Passes,
   configure authentication methods or force every user to register.
-- **Guest policy scope** — the source template scopes the guest MFA policy by
-  group rather than by guest user type; documented simplification.
+- **Guest migration readiness**: the guest MFA policy targets guests and
+  external users across the tenant. An existing group-scoped policy needs
+  manual migration review; the toolkit does not prove guest MFA enrollment,
+  cross-tenant trust or sign-in compatibility.

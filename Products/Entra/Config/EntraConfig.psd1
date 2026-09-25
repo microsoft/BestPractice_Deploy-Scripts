@@ -135,7 +135,7 @@
             @{ Key = 'require-mfa-admins'; File = 'require-mfa-admins.json'; RecommendedState = 'On'; Tier = 'P1Baseline'; NameCode = 'P1-01-Admins'; ReviewExistingOnly = $true }
             @{ Key = 'block-legacy-authentication'; File = 'block-legacy-authentication.json'; RecommendedState = 'On'; Tier = 'P1Baseline'; NameCode = 'P1-02-Users' }
             @{ Key = 'require-mfa-all-users'; File = 'require-mfa-all-users.json'; RecommendedState = 'On'; Tier = 'P1Baseline'; NameCode = 'P1-03-Users' }
-            @{ Key = 'require-mfa-guests'; File = 'require-mfa-guests.json'; RecommendedState = 'On'; Tier = 'P1Baseline'; NameCode = 'P1-04-Guests' }
+            @{ Key = 'require-mfa-guests'; File = 'require-mfa-guests.json'; RecommendedState = 'On'; Tier = 'P1Baseline'; NameCode = 'P1-04-Guests'; ReviewExistingOnly = $true }
             @{ Key = 'require-mfa-azure-management'; File = 'require-mfa-azure-management.json'; RecommendedState = 'On'; Tier = 'P1Baseline'; NameCode = 'P1-05-AzureManagement'; ReviewExistingOnly = $true }
             @{ Key = 'require-mfa-admin-portals'; File = 'require-mfa-admin-portals.json'; RecommendedState = 'On'; Tier = 'P1Baseline'; NameCode = 'P1-06-AdminPortals'; ReviewExistingOnly = $true }
             @{ Key = 'block-unsupported-device-platform'; File = 'block-unsupported-device-platform.json'; RecommendedState = 'On'; Tier = 'P1Baseline'; NameCode = 'P1-07-Users' }

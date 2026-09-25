@@ -53,6 +53,7 @@ function Invoke-BaselineScenario {
         [switch] $Preview,
         [switch] $Adopt,
         [switch] $Withhold,
+        [switch] $TenantWide,
         [switch] $SecurityDefaults,
         [switch] $AsObject,
         [switch] $ExpectFailure
@@ -69,7 +70,7 @@ function Invoke-BaselineScenario {
     $global:EntraRunLogPath = $null
     $context = @{
         TenantAdminUpn = 'admin@example.invalid'
-        AssignmentScope = 'PilotGroup'
+        AssignmentScope = $(if ($TenantWide) { 'TenantWide' } else { 'PilotGroup' })
         PilotGroupId = '33333333-3333-3333-3333-333333333333'
         BreakGlassUserIds = @('11111111-1111-1111-1111-111111111111')
         BreakGlassGroupIds = @()
@@ -133,8 +134,39 @@ try {
                 'compliantDevice' -in $result.Created.grantControls.builtInControls -and
                 'domainJoinedDevice' -in $result.Created.grantControls.builtInControls) 'Device-or-MFA fallback is missing'
         }
+        if ($reference.Key -eq 'require-mfa-guests') {
+            $users = $result.Created.conditions.users
+            Assert-True (($users.includeUsers -join ',') -ceq 'GuestsOrExternalUsers') 'Guest MFA must select guest/external users, not the workforce pilot group'
+            Assert-True (-not $users.ContainsKey('includeGroups') -and -not $users.ContainsKey('includeRoles')) 'Guest MFA must not union pilot groups or roles into guest scope'
+            Assert-True ($users.excludeUsers -contains '11111111-1111-1111-1111-111111111111') 'Guest MFA lost emergency-access exclusions'
+        }
         $preview = Invoke-BaselineScenario -Key $reference.Key -Preview
         Assert-True ($preview.Writes -eq 0) "$($reference.Key) wrote during WhatIf"
+    }
+
+    $guest = Invoke-BaselineScenario -Key 'require-mfa-guests' -TenantWide
+    Assert-True (($guest.Created.conditions.users.includeUsers -join ',') -ceq 'GuestsOrExternalUsers') 'Tenant-wide mode broadened guest MFA to workforce users'
+    $legacyGuest = Copy-TestValue $guest.Created
+    $legacyGuest.conditions.users.Remove('includeUsers') | Out-Null
+    $legacyGuest.conditions.users.includeGroups = @('33333333-3333-3333-3333-333333333333')
+    $legacyGuest.state = 'enabled'
+    $legacyBefore = $legacyGuest | ConvertTo-Json -Depth 30 -Compress
+    foreach ($adopt in @($false, $true)) {
+        $legacyResult = Invoke-BaselineScenario -Key 'require-mfa-guests' -Existing @($legacyGuest) -Adopt:$adopt
+        Assert-True ($legacyResult.Writes -eq 0) 'Legacy group-scoped guest policy was automatically changed or duplicated'
+        Assert-True (@($legacyResult.Log | Where-Object {
+                    $_.Disposition -eq 'GuidedOnly' -and $_.Readback -eq 'Mismatch'
+                }).Count -eq 1) 'Legacy guest targeting did not require manual migration review'
+        Assert-True (($legacyGuest | ConvertTo-Json -Depth 30 -Compress) -ceq $legacyBefore) 'Legacy guest enforcement or targeting was mutated'
+    }
+    foreach ($mutation in @(
+            { param($p) $p.conditions.users.includeUsers = @('All') },
+            { param($p) $p.conditions.users.Remove('includeUsers') | Out-Null },
+            { param($p) $p.conditions.users.includeGroups = @('33333333-3333-3333-3333-333333333333') },
+            { param($p) $p.conditions.users.includeRoles = @('62e90394-69f5-4237-9190-012177145e10') },
+            { param($p) $p.conditions.users.excludeGuestsOrExternalUsers = @{ guestOrExternalUserTypes = 'b2bCollaborationGuest' } },
+            { param($p) $p.conditions.users.excludeUsers = @() })) {
+        $null = Invoke-BaselineScenario -Key 'require-mfa-guests' -Mutate $mutation -ExpectFailure
     }
 
     foreach ($mutation in @(
@@ -178,7 +210,7 @@ try {
         param($p) $p.conditions.users.includeRoles = @()
     } -ExpectFailure
 
-    foreach ($key in @('require-mfa-admins', 'require-mfa-admin-portals', 'require-mfa-azure-management', 'require-compliant-device-or-mfa')) {
+    foreach ($key in @('require-mfa-admins', 'require-mfa-admin-portals', 'require-mfa-azure-management', 'require-compliant-device-or-mfa', 'require-mfa-guests')) {
         $created = (Invoke-BaselineScenario -Key $key).Created
         $rerun = Invoke-BaselineScenario -Key $key -Existing @($created) -Adopt
         Assert-True ($rerun.Writes -eq 0) "$key silently migrated an existing policy"
@@ -188,7 +220,7 @@ try {
         Assert-True ($protected.Writes -eq 0) "$key bypassed Security Defaults"
     }
     . (Join-Path $entra 'Modules\EntraPolicyComparison.ps1')
-    foreach ($key in @('no-persistent-browser-session', 'require-phishing-resistant-mfa-admins')) {
+    foreach ($key in @('no-persistent-browser-session', 'require-phishing-resistant-mfa-admins', 'require-mfa-guests')) {
         $invalidConfig = Copy-TestValue $config.ConditionalAccess
         ($invalidConfig.Policies | Where-Object Key -eq $key).ReviewExistingOnly = $false
         $rejected = $false

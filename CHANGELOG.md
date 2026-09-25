@@ -68,6 +68,11 @@ landed but not yet been tagged in a release appear under **Unreleased**.
 
 ### Fixed
 
+- [Entra] Target the guest MFA policy at guests and external users instead
+  of all members of the pilot group. New policies remain report-only by
+  default. Existing guest policies require manual migration review, and
+  readback rejects unexpected guest exclusions or additional workforce scope.
+
 - [Defender] Report a module as `FAILED` when any operation or readback fails,
   even if other entries are blocked.
 - [Entra] Correct role and Azure-management targeting and include the MFA
