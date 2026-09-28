@@ -147,6 +147,15 @@ landed but not yet been tagged in a release appear under **Unreleased**.
 
 ### Security
 
+- **[Entra] Standalone Conditional Access write verification.** Close an
+  inherited standalone-module gap by rechecking the actual Graph operator and
+  intended tenant, enabled emergency users/group members and permanent
+  tenant-wide Global Administrator recovery before each create or adoption
+  write. Standalone writes now require `Context.TenantId`; assessment/WhatIf
+  retain their existing gates. Caller markers and diagnostic JSON never
+  authorize writes. No roles/scopes are added, and existing-policy state and
+  customer exclusions remain preserved.
+
 - **[Purview] Tenant validation rejects broader Graph consent.** The read-only
   validator now checks the effective token, disconnects contexts containing
   permissions outside its two documented Graph read scopes, and supports an

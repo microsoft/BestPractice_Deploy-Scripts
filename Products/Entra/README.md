@@ -16,6 +16,14 @@ permalink: /entra/
 > must be verified disabled before any tenant write. The toolkit never disables
 > it or performs the transition automatically.
 
+Every actual Conditional Access create or adoption write also revalidates the
+current Graph account/tenant and the supplied emergency users/groups against
+live directory and permanent Global Administrator role state. Standalone
+writes require the intended `Context.TenantId` GUID as well as
+`Context.TenantAdminUpn`; caller verification flags are not proof.
+Assessment/WhatIf remain available without these additional write-only reads.
+See [standalone prerequisites](docs/Operator-Guide.md#standalone-conditional-access-writes).
+
 PowerShell automation that deploys the **Conditional Access baseline** from the
 Microsoft **Identity Protection Best Practice Deployment** guide for a Microsoft
 365 **Business Premium** tenant (Microsoft Entra ID P1). Built to the same

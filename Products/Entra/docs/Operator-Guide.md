@@ -187,13 +187,40 @@ home tenant. `-NonInteractive` suppresses toolkit prompts but does not provide
 app-only authentication or guarantee a prompt-free first sign-in. Standalone
 setup modules require a verified Graph connection in the same session.
 
+### Standalone Conditional Access writes
+
+Prefer the orchestrator for its approval/preflight workflow. Standalone
+`Setup-ConditionalAccessBaseline.ps1` remains supported, but the operator owns
+change approval, scope and recovery readiness. For an actual write, supply
+`Context.TenantAdminUpn` and **`Context.TenantId` as the independently confirmed
+intended tenant GUID** (the customer tenant for GDAP), plus the emergency user
+or group IDs. Do not derive the intended tenant from whichever session happens
+to be cached. The orchestrator already supplies this tenant ID.
+
+Before each POST or adoption PATCH, the module checks the actual Graph account
+and tenant against that intent, reads the organization ID, and re-reads the
+exact emergency principals and permanent tenant-wide Global Administrator
+assignments. Groups must contain an enabled recovery user. Missing IDs,
+unreadable directory/role state or identity mismatches stop before that write.
+Caller `verified`/`runId` markers do not bypass the checks. No account creation,
+role grant, authentication connection or extra permission scope is performed
+by this validation; resolve sign-in/consent through the normal approved workflow.
+
+Assessment and `-WhatIf` do not require this additional write-only verification.
+Preserve existing blocker lists and Security Defaults gates. Adoption can
+modify an already enabled policy even when the configured creation default is
+report-only; it preserves that policy's state and still requires fresh recovery
+verification. Verification and the subsequent write are not an atomic directory
+transaction and do not guarantee recovery against concurrent changes.
+
 ## Reports and stopping conditions
 
 The final output announces successfully saved HTML and JSON run reports and
 prints a manual open command. Defaults are `Reports\entra-run-report.html`
 and `Reports\entra-run-log.json` under the product folder. The emergency-access
 module can also write `Reports\entra-breakglass.json`; this contains resolved
-IDs for module coordination and is not proof that recovery works.
+IDs for diagnostics only, never write authorization, and is not proof that
+recovery works.
 
 Preserve each run's files privately before rerunning because the default
 filenames are overwritten. Reporting can still finish after deployment

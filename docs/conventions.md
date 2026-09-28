@@ -39,6 +39,7 @@ pwsh -NoProfile -File .\scripts\Test-IntuneReviewFixes.ps1
 pwsh -NoProfile -File .\scripts\Test-DefenderConnectionGuards.ps1
 pwsh -NoProfile -File .\scripts\Test-DefenderComparableValues.ps1
 pwsh -NoProfile -File .\scripts\Test-DeploymentSafeguards.ps1
+pwsh -NoProfile -File .\scripts\Test-EntraStandaloneWriteGuards.ps1
 ```
 
 These plain PowerShell checks use synthetic Graph responses and require no
@@ -51,6 +52,9 @@ SDK boundary, including emergency-access handoff, operator identity, evidence
 export failures and Intune endpoint/paging rejection. Generated fixtures and
 reports default to `C:\temp\deployment-safeguard-remediation` (`-TempRoot`
 overrides this location). It never authenticates to a tenant.
+The standalone Entra suite exercises the actual CA module's POST/PATCH
+boundary with synthetic account, organization, principal and role reads,
+including enabled-policy adoption, invalid inputs and changes between writes.
 
 For deployment-code changes, completion also requires validation of the affected
 deployment path against an approved non-production tenant. Do not connect to a

@@ -50,6 +50,16 @@ markers does not authorize or alter deployment. A missing/malformed module
 result stops the run. This is not protection against arbitrary code running
 inside the same PowerShell process.
 
+The public CA module independently repeats read-only identity and emergency
+principal verification before every actual POST/PATCH, including standalone
+calls and adoption of enabled policies. It uses copied verified IDs, not
+caller-supplied verification markers or diagnostic files. Standalone writes
+need the intended tenant GUID and operator UPN; assessment/WhatIf do not run
+these additional write-only checks. The verifier never creates accounts or
+grants roles. Directory verification and the CA write are separate operations:
+concurrent changes can still invalidate recovery, so operational recovery
+testing and change control remain required.
+
 Under the default configuration, every policy the toolkit creates excludes
 the break-glass principal, including report-only policies. This is the
 toolkit's preparation for later enforcement; Microsoft notes that report-only

@@ -47,6 +47,16 @@ accounts. Empty lists mean no principals were verified for that run, not that no
 emergency accounts exist anywhere in the tenant. Never treat this file as
 credential storage or as proof of successful recovery.
 
+`VerifyWriteBoundary` with `Failed/Blocked` means the public CA module rejected
+the actual session/tenant or could not reverify the supplied emergency IDs
+before a POST/PATCH. Check the intended `Context.TenantId` GUID, operator UPN,
+current Graph sign-in and directory/role read permissions. Confirm enabled
+accounts/group membership and permanent tenant-wide Global Administrator
+recovery, then rerun under approval. Fabricating a run ID or `verified=true`
+does not authorize standalone writes. A later-policy failure does not roll back
+earlier writes: review each applied policy and its readback. Checks are repeated
+per write but are not atomic against concurrent directory changes.
+
 Reports are private tenant evidence. Redaction is pattern-based, not a
 guarantee that every service-authored error is safe to share. Review excerpts,
 and never commit reports, private configuration, tokens, or credentials.

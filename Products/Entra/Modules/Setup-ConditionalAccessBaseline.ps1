@@ -8,11 +8,16 @@
     from the templates in ConditionalAccess.PolicyTemplateDirectory. Every policy
     is created in ConditionalAccess.DefaultState (report-only by default), scoped
     to the pilot group for all-users-style policies, and always excludes the
-    break-glass principals resolved by Setup-EmergencyAccess.
+    break-glass principals verified by shared read-only directory checks.
+    Every actual POST/PATCH revalidates the current Graph operator, the intended
+    Context.TenantId GUID, and enabled emergency principals with permanent
+    tenant-wide Global Administrator recovery. Standalone writes are supported;
+    caller verification markers and JSON evidence are never trusted.
 
-    High risk: Conditional Access can deny sign-in tenant-wide. The write only
-    runs when the orchestrator has cleared the item; otherwise the module reports
-    what it would create. Idempotent on display name, gated by ShouldProcess,
+    High risk: Conditional Access can deny sign-in tenant-wide. Orchestrator
+    blockers are respected; standalone operators own approval and scope.
+    Assessment and WhatIf do not run the additional write-boundary verification.
+    Idempotent on display name, gated by ShouldProcess,
     wrapped in the shared retry boundary, and read back. The original ten-policy
     baseline has historical Business Premium pilot evidence; the newer P1
     additions require separate pilot validation.
@@ -311,6 +316,8 @@ foreach ($policyRef in @($ca.Policies)) {
     }
 
     # Always exclude the break-glass principals, merged with any template roles.
+    $templateExcludedUsers = @($users['excludeUsers'])
+    $templateExcludedGroups = @($users['excludeGroups'])
     if ($breakGlassUsers.Count -gt 0) {
         $users.excludeUsers = @(@($users['excludeUsers']) + $breakGlassUsers | Where-Object { $_ } | Select-Object -Unique)
     }
@@ -385,6 +392,25 @@ foreach ($policyRef in @($ca.Policies)) {
             -Status 'Info' -Disposition 'WillChange' -Target $displayName -Readback 'NotAttempted' `
             -Detail "WhatIf: would create '$displayName' in state=$state, break-glass excluded, recommended target=$($policyRef.RecommendedState)."
         continue
+    }
+
+    try {
+        Assert-EntraWriteIdentity -BaseUri $v1 -TenantAdminUpn $Context.TenantAdminUpn -TenantId $Context.TenantId
+        $verified = Get-EntraVerifiedEmergencyAccess -BaseUri $v1 `
+            -UserIds $breakGlassUsers -GroupIds $breakGlassGroups -Module $module -BestPracticeKey $bestPracticeKey
+        if ($verified.userIds.Count + $verified.groupIds.Count -eq 0) {
+            throw 'Verified emergency access is required before Conditional Access writes.'
+        }
+        $breakGlassUsers = @($verified.userIds)
+        $breakGlassGroups = @($verified.groupIds)
+        $users.excludeUsers = @($templateExcludedUsers + $breakGlassUsers | Where-Object { $_ } | Select-Object -Unique)
+        $users.excludeGroups = @($templateExcludedGroups + $breakGlassGroups | Where-Object { $_ } | Select-Object -Unique)
+    }
+    catch {
+        Add-EntraRunLogEntry -Module $module -Action 'VerifyWriteBoundary' -BestPracticeKey $bestPracticeKey `
+            -Status 'Failed' -Disposition 'Blocked' -Readback 'NotAttempted' -Target $displayName `
+            -HttpStatusCode (Get-EntraHttpStatusCode -ErrorRecord $_) -Detail $_.Exception.Message
+        throw
     }
 
     $policy.Remove('id') | Out-Null

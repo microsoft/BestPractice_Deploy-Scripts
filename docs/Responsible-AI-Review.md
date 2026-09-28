@@ -178,6 +178,18 @@ exist for the affected guides. The AI-sensitive heuristic matches existing
 new model functionality. None of these explanations waives the pilot gate or
 unrelated pre-existing whole-repository findings.
 
+The subsequent independent standalone-CA finding is an inherited verification
+gap, not a regression introduced by the in-memory handoff or evidence of
+privilege escalation. The public CA module now revalidates the actual session,
+intended tenant and exact emergency principals before every POST/PATCH, using
+shared read-only verification and copied results. Standalone operators must
+supply the intended tenant GUID for writes. Tests cover invalid user/group
+responses, unavailable or temporary roles, wrong/missing identity, fabricated
+markers, enabled-policy adoption and revocation between writes. Assessment,
+WhatIf, manual migration and existing blockers remain. There is no atomic
+directory-plus-CA transaction or protection against arbitrary in-process code;
+pilot recovery validation is still required.
+
 ### Decision
 
 Local review only; **release readiness is blocked pending approved tenant
