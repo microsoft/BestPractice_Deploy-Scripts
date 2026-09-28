@@ -289,6 +289,7 @@ try {
         -BaseUri $config.Api.GraphBaseUri -Module 'Deploy-EntraBestPractice'
 
     $commonContext = @{
+        RunId = $runId
         TenantAdminUpn = $TenantAdminUpn
         TenantId = $resolvedTenantId
         ConnectionInfo = $connectionInfo
@@ -308,11 +309,19 @@ try {
         SecurityDefaultsState = $securityDefaultsState
     }
 
+    $breakGlassVerified = $false
     foreach ($task in $tasks) {
         Add-EntraRunLogEntry -Module $task.Name -Action 'Stage' -Status 'Info' -Detail $task.Stage
         if ($task.Skip) {
             Add-EntraRunLogEntry -Module $task.Name -Action 'Module' -Status 'Skipped' -Detail 'Skip switch was supplied.'
             continue
+        }
+        if ($task.Name -eq 'Setup-ConditionalAccessBaseline' -and -not $breakGlassVerified) {
+            $commonContext.BreakGlassUserIds = @()
+            $commonContext.BreakGlassGroupIds = @()
+            $commonContext.WriteBlockedItemKeys = @($commonContext.WriteBlockedItemKeys) + 'conditional-access-baseline'
+            Add-EntraRunLogEntry -Module $task.Name -Action 'BreakGlassGate' -Status 'Info' -Disposition 'Blocked' `
+                -Detail 'Conditional Access writes withheld: no emergency-access principals were verified in this run. Run emergency-access verification with configured, enabled permanent Global Administrators.'
         }
         $taskPath = Join-Path $moduleRoot $task.Script
         if (-not (Test-Path -LiteralPath $taskPath -PathType Leaf)) {
@@ -324,20 +333,37 @@ try {
         $taskArgs.Context = $commonContext
         if ($WhatIfPreference) { $taskArgs['WhatIf'] = $true }
         try {
-            & $taskPath @taskArgs
-            Add-EntraRunLogEntry -Module $task.Name -Action 'Module' -Status 'Succeeded' -Detail 'Module process completed.'
-
-            # Fold the emergency-access module's resolved break-glass principals
-            # into the shared context so the Conditional Access baseline can
-            # exclude them. Later tasks receive this updated context at dispatch.
-            if ($task.Name -eq 'Setup-EmergencyAccess' -and
-                (Test-Path -LiteralPath $commonContext.BreakGlassOutputPath -PathType Leaf)) {
-                $bg = Get-Content -LiteralPath $commonContext.BreakGlassOutputPath -Raw | ConvertFrom-Json
-                $commonContext.BreakGlassUserIds = @(@($commonContext.BreakGlassUserIds) + @($bg.userIds) | Where-Object { $_ } | Select-Object -Unique)
-                $commonContext.BreakGlassGroupIds = @(@($commonContext.BreakGlassGroupIds) + @($bg.groupIds) | Where-Object { $_ } | Select-Object -Unique)
+            if ($task.Name -eq 'Setup-EmergencyAccess') {
+                $results = @(& $taskPath @taskArgs)
+                if ($results.Count -ne 1 -or $results[0] -isnot [pscustomobject]) {
+                    throw 'Emergency-access module must return exactly one structured verification result.'
+                }
+                $bg = $results[0]
+                $fields = @($bg.PSObject.Properties.Name)
+                if ($fields.Count -ne 4 -or
+                    @('runId', 'verified', 'userIds', 'groupIds' | Where-Object { $_ -cnotin $fields }).Count -gt 0 -or
+                    $bg.runId -isnot [string] -or $bg.runId -cne [string] $runId -or
+                    $bg.verified -isnot [bool] -or
+                    $bg.userIds -isnot [string[]] -or $bg.groupIds -isnot [string[]]) {
+                    throw 'Emergency-access module returned a stale or malformed verification result.'
+                }
+                $verifiedIds = @($bg.userIds) + @($bg.groupIds)
+                if (@($verifiedIds | Where-Object { [string]::IsNullOrWhiteSpace($_) }).Count -gt 0 -or
+                    $bg.verified -ne ($verifiedIds.Count -gt 0)) {
+                    throw 'Emergency-access module returned an inconsistent verified principal set.'
+                }
+                # Only the module's in-memory result authorizes exclusions.
+                # The editable JSON evidence is never read back into this context.
+                $breakGlassVerified = $bg.verified
+                $commonContext.BreakGlassUserIds = @($bg.userIds)
+                $commonContext.BreakGlassGroupIds = @($bg.groupIds)
                 Add-EntraRunLogEntry -Module 'Deploy-EntraBestPractice' -Action 'BreakGlass' -Status 'Info' `
                     -Detail "Break-glass exclusions available: $((@($commonContext.BreakGlassUserIds)+@($commonContext.BreakGlassGroupIds)).Count)."
             }
+            else {
+                & $taskPath @taskArgs
+            }
+            Add-EntraRunLogEntry -Module $task.Name -Action 'Module' -Status 'Succeeded' -Detail 'Module process completed.'
         }
         catch {
             $status = Get-EntraHttpStatusCode -ErrorRecord $_

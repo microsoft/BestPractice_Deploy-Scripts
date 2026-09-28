@@ -107,8 +107,8 @@
         RequireBreakGlassExclusion = $true
         BreakGlass = @{
             # Operator supplies an existing emergency-access account/group here,
-            # or sets CreateAccountIfMissing to have Setup-EmergencyAccess create
-            # a dedicated cloud-only break-glass account (guide Priority 1 task).
+            # or sets CreateAccountIfMissing to create an account and stop for
+            # manual credential and permanent Global Administrator setup.
             ExcludeUserIds = @()
             ExcludeGroupIds = @()
             CreateAccountIfMissing = $false

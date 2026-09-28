@@ -21,6 +21,54 @@
 # already idempotent to redefine.
 . (Join-Path $PSScriptRoot 'Invoke-WithTransientRetry.ps1')
 
+function Assert-IntuneGraphBaseUri {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)] [string] $BaseUri)
+
+    # Match the original value as well as parsing it: Uri normalizes dot segments,
+    # backslashes and some empty delimiters that are not valid configuration.
+    $basePattern = '^https://(graph\.microsoft\.com|graph\.microsoft\.us|dod-graph\.microsoft\.us|microsoftgraph\.chinacloudapi\.cn)(:443)?/(v1\.0|beta)/?\z'
+    $parsed = $null
+    if ($BaseUri -notmatch $basePattern -or
+        -not [uri]::TryCreate($BaseUri, [UriKind]::Absolute, [ref] $parsed) -or
+        $parsed.Scheme -ne 'https' -or -not $parsed.IsDefaultPort -or
+        $parsed.UserInfo -ne '' -or $parsed.Query -ne '' -or $parsed.Fragment -ne '') {
+        throw 'Graph API base must be an absolute HTTPS URL on an approved Microsoft Graph host, default port 443, and only the /v1.0 or /beta path (optional trailing slash). User information, query strings, fragments and ambiguous path components are not allowed.'
+    }
+}
+
+function Assert-IntuneGraphCollectionUri {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)] [string] $BaseUri,
+        [Parameter(Mandatory)] [string] $InitialUri,
+        [Parameter(Mandatory)] [string] $Uri
+    )
+
+    Assert-IntuneGraphBaseUri -BaseUri $BaseUri
+    $base = [uri] $BaseUri
+    $initial = $null
+    $next = $null
+    foreach ($candidate in @($InitialUri, $Uri)) {
+        $parsed = $null
+        if (-not [uri]::TryCreate($candidate, [UriKind]::Absolute, [ref] $parsed) -or
+            $candidate.Split('?')[0] -match '[\\\s]|^https://[^/]*@' -or
+            $candidate -match '[\x00-\x1F\x7F]' -or $candidate.Contains('#') -or
+            $parsed.Scheme -ne 'https' -or -not $parsed.IsDefaultPort -or
+            $parsed.UserInfo -ne '' -or $parsed.Fragment -ne '' -or
+            -not [string]::Equals($parsed.Host, $base.Host, [StringComparison]::OrdinalIgnoreCase) -or
+            -not $parsed.AbsolutePath.StartsWith($base.AbsolutePath.TrimEnd('/') + '/', [StringComparison]::Ordinal) -or
+            ($candidate.Split('?')[0] -match '(?i)/(?:\.|%2e){1,2}(/|$)')) {
+            throw 'Microsoft Graph returned a collection URI outside the configured Graph authority or API path.'
+        }
+        if ($null -eq $initial) { $initial = $parsed }
+        $next = $parsed
+    }
+    if (-not [string]::Equals($initial.AbsolutePath, $next.AbsolutePath, [StringComparison]::Ordinal)) {
+        throw 'Microsoft Graph returned a next link outside the exact requested collection path.'
+    }
+}
+
 function Resolve-IntuneGraphUri {
     <#
         Builds a request URI from the configured base. The base is validated
@@ -34,23 +82,7 @@ function Resolve-IntuneGraphUri {
         [Parameter(Mandatory)] [string] $RelativePath
     )
 
-    $approvedHosts = @(
-        'graph.microsoft.com',
-        'graph.microsoft.us',
-        'dod-graph.microsoft.us',
-        'microsoftgraph.chinacloudapi.cn'
-    )
-
-    $parsed = $null
-    if (-not [uri]::TryCreate($BaseUri, [UriKind]::Absolute, [ref] $parsed)) {
-        throw "Api.GraphBaseUri is not an absolute URI: $BaseUri"
-    }
-    if ($parsed.Scheme -ne 'https') {
-        throw "Api.GraphBaseUri must use HTTPS: $BaseUri"
-    }
-    if ($parsed.Host -notin $approvedHosts) {
-        throw "Api.GraphBaseUri host '$($parsed.Host)' is not an approved Microsoft Graph endpoint."
-    }
+    Assert-IntuneGraphBaseUri -BaseUri $BaseUri
 
     return ('{0}/{1}' -f $BaseUri.TrimEnd('/'), $RelativePath.TrimStart('/'))
 }

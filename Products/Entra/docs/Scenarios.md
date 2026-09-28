@@ -123,9 +123,10 @@ duplication. See [policy naming and selection](../README.md#policy-naming-and-se
 The toolkit either **verifies** an emergency-access account you already have —
 confirming it is enabled and holds a permanently assigned, tenant-wide Global
 Administrator role with no expiry — or, if you opt in, **creates** a dedicated
-cloud-only account for you. Temporary PIM activations and expiring assignments
-do not qualify. Either way the account is excluded from every Conditional
-Access policy. See the
+cloud-only account and stops before Conditional Access deployment. Configure
+and test credentials and permanent Global Administrator access, add the object
+ID to the private config, and rerun. Only verified principals become exclusions.
+Temporary PIM activations and expiring assignments do not qualify. See the
 [break-glass guide](Break-Glass-Guide.md) for the end-user steps.
 
 ## Tenant security settings (Zero Trust, opt-in)

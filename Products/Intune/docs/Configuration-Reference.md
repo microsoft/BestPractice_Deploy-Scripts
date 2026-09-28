@@ -26,6 +26,25 @@ hardcode policy names, licenses, assignment scope, or report paths.
 
 ## Command-line controls
 
+### Graph endpoint boundary
+
+`Api.GraphBaseUri` and `Api.GraphBetaBaseUri` are checked before authentication,
+and the shared validator also protects independently invoked app modules.
+Supported hosts are `graph.microsoft.com`, `graph.microsoft.us`,
+`dod-graph.microsoft.us`, and `microsoftgraph.chinacloudapi.cn`. Bases require
+HTTPS, default port 443 (explicit `:443` is allowed), and only `/v1.0` or
+`/beta`, optionally ending in `/`. They cannot include user information,
+queries, fragments, additional path segments, encoded or normalized-away path
+components. This host validation is not certification that every resource is
+available in every cloud; existing API and release boundaries still apply.
+
+App deployment, app protection, device Conditional Access, compliance and
+enrollment collection readers reject continuation links that change authority,
+version or exact collection path, include user information/fragments, are
+malformed, or form a cycle. Legitimate paging query parameters are allowed.
+Invalid destinations are rejected before SDK dispatch; no token-forwarding
+behavior is assumed or tested with live credentials.
+
 `-Skip*` switches omit modules intentionally; they are not fixes for module
 failures. `-NoLicenseAutoDetect` disables automatic SKU checks and reduces the
 strength of applicability evidence. `-PilotGroupId` is the safe default
@@ -152,6 +171,12 @@ a direct run and a GDAP run. There is no `ContextScope Process` override: the
 default Microsoft Graph PowerShell authentication persistence behavior
 applies. Authentication is delegated UPN/GDAP only; no other authentication
 mode is available.
+
+Fresh sign-in is checked against the actual `Get-MgContext.Account`, not the
+requested UPN alone. Missing or different accounts are rejected before setup or
+successful connection evidence; case differences are accepted. Invalid account
+or tenant contexts are disconnected where possible without replacing the
+original failure. The configured scope set is unchanged.
 
 ## Policy catalog
 

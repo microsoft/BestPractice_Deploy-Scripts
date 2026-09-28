@@ -370,13 +370,25 @@ catch {
     throw
 }
 finally {
-    if ($global:DefenderRunLog) {
+    if ($null -ne $global:DefenderRunLog) {
         $endTime = [datetime]::UtcNow
-        Save-DefenderRunLogJson -EndTime $endTime
-        Write-DefenderHtmlReport -Path $htmlPath -Entries (Get-DefenderRunLog) `
-            -RunId $runId -StartTime $startTime -EndTime $endTime `
-            -TenantId $TenantId -TenantAdminUpn $TenantAdminUpn `
-            -ScriptVersion $config.ProductVersion
-        Clear-DefenderRunLog
+        try {
+            try { Save-DefenderRunLogJson -EndTime $endTime }
+            catch {
+                Write-Warning ("JSON run log could not be written: {0}" -f (Protect-DefenderLogText $_.Exception.Message)) -WarningAction Continue
+            }
+            try {
+                Write-DefenderHtmlReport -Path $htmlPath -Entries (Get-DefenderRunLog) `
+                    -RunId $runId -StartTime $startTime -EndTime $endTime `
+                    -TenantId $TenantId -TenantAdminUpn $TenantAdminUpn `
+                    -ScriptVersion $config.ProductVersion
+            }
+            catch {
+                Write-Warning ("HTML report could not be written: {0}" -f (Protect-DefenderLogText $_.Exception.Message)) -WarningAction Continue
+            }
+        }
+        finally {
+            Clear-DefenderRunLog
+        }
     }
 }

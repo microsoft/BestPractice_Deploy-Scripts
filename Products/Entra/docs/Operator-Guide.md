@@ -75,7 +75,7 @@ Keep the following settings for the initial pilot:
 | `ConditionalAccess.DefaultState` | Keep `enabledForReportingButNotEnforced`. |
 | `ConditionalAccess.RequireBreakGlassExclusion` | Keep `$true`. |
 | `ConditionalAccess.BreakGlass.ExcludeUserIds` / `ExcludeGroupIds` | Supply independently verified emergency-access object IDs. Do not use display names or assume an empty list proves no accounts exist. |
-| `ConditionalAccess.BreakGlass.CreateAccountIfMissing` | Keep `$false` when using verified existing accounts. Account creation requires separate preparation and manual completion. |
+| `ConditionalAccess.BreakGlass.CreateAccountIfMissing` | Keep `$false` when using verified existing accounts. Opt-in creation stops before Conditional Access writes; complete credentials, permanent Global Administrator assignment and recovery testing, configure the object ID, then rerun. An existing proposed UPN is not automatically adopted. |
 | `TenantSecurity.*.Apply` | Keep `$false` unless the individual tenant-wide change has its own approval and recovery plan. |
 | `Assignment.AllowTenantWideAssignmentForHighRisk` | Keep `$false` for the pilot. |
 
@@ -84,6 +84,12 @@ approved pilot users and record its object ID. Confirm membership, owners,
 licenses, and the intended test accounts before using it as `-PilotGroupId`.
 Keep emergency-access identities out of normal pilot activity and verify
 their exclusions independently.
+
+Do not use `-SkipEmergencyAccess` to bypass a failed check. Conditional Access
+writes require emergency principals verified in the current run. Disabled
+accounts, missing permanent roles, and unreadable directory/role state stop
+deployment. Only the module's validated in-memory result supplies exclusions;
+the diagnostic JSON file cannot authorize continuation or substitute IDs.
 
 The pilot group narrows all-users-style templates, not every policy.
 Role- and app-scoped templates retain their configured targeting. In

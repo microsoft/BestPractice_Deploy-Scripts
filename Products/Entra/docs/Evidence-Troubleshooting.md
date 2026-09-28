@@ -29,8 +29,21 @@ A write warning means that file was not confirmed saved; an older file can
 still exist at the same location. Check the run ID and timestamps, not just
 file presence. Preserve reports before retrying because filenames are reused.
 
-`entra-breakglass.json` is a local handoff containing resolved emergency-access
-IDs. Empty lists mean no principals were resolved for that run, not that no
+`entra-breakglass.json` is diagnostic evidence containing resolved emergency-access
+IDs plus a `runId` and Boolean `verified` marker. It is invalidated before
+directory verification, but it is **never read to authorize exclusions**.
+The orchestrator accepts exactly one structured in-memory result from the
+emergency-access module, validates its current run ID, Boolean verification
+state and typed principal arrays, and copies those arrays into the CA context.
+Editing, replacing or replaying the JSON cannot change those exclusions, even
+when its markers look valid. Missing, malformed or inconsistent module results
+stop deployment. This protects the file boundary, not a compromised PowerShell
+process. Account creation
+leaves `verified=false` and empty IDs, records `CreateBreakGlass` followed by a
+failed/blocked `BreakGlassHandoff`, and stops before Conditional Access writes.
+Complete [manual setup](Break-Glass-Guide.md#after-a-break-glass-account-is-created),
+configure the existing account's object ID, and rerun; do not repeatedly create
+accounts. Empty lists mean no principals were verified for that run, not that no
 emergency accounts exist anywhere in the tenant. Never treat this file as
 credential storage or as proof of successful recovery.
 
@@ -102,6 +115,7 @@ emergency-access checks, not full policy coverage or a sign-in guarantee.
 | Symptom | What to do |
 |---|---|
 | Wrong tenant or verified-domain mismatch | Stop. Check the administrator UPN and, for GDAP, the customer domain. Do not bypass identity verification. |
+| Missing or different operator after sign-in | Select the exact `TenantAdminUpn` account on rerun. The invalid context is disconnected where possible. If disconnect also fails, close PowerShell and start a fresh session; the original identity error remains authoritative. No broader scope is needed. |
 | `401` / `403` or a failed read | Check the exact Graph operation, configured scopes, effective roles, GDAP access, and session. Do not add broad permissions speculatively. |
 | Security Defaults enabled or unknown | Keep active protection. Use the [approved transition guide](Security-Defaults-Transition.md); the toolkit never disables it. |
 | Missing apply parameters or pilot group | Complete the [operator checklist](Operator-Guide.md). Removing `-WhatIf` alone does not authorize writes. |

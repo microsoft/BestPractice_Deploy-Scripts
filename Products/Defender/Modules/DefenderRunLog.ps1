@@ -89,10 +89,10 @@ function Save-DefenderRunLogJson {
         }
         # Evidence output is local, not a tenant change; never suppress it under
         # -WhatIf.
-        $payload | ConvertTo-Json -Depth 12 | Set-Content -LiteralPath $Path -Encoding utf8 -WhatIf:$false
+        $payload | ConvertTo-Json -Depth 12 | Set-Content -LiteralPath $Path -Encoding utf8 -WhatIf:$false -ErrorAction Stop
     }
     catch {
-        Write-Verbose "Save-DefenderRunLogJson failed: $($_.Exception.Message)"
+        Write-Warning ("JSON run log could not be written: {0}" -f (Protect-DefenderLogText $_.Exception.Message)) -WarningAction Continue
     }
 }
 

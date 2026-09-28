@@ -31,6 +31,10 @@ $ConfirmPreference = 'None'
 
 . (Join-Path $PSScriptRoot 'IntuneRunLog.ps1')
 . (Join-Path $PSScriptRoot 'Invoke-WithTransientRetry.ps1')
+. (Join-Path $PSScriptRoot 'IntuneGraphClient.ps1')
+
+Assert-IntuneGraphBaseUri -BaseUri $Config.Api.GraphBaseUri
+Assert-IntuneGraphBaseUri -BaseUri $Config.Api.GraphBetaBaseUri
 
 $module = 'Setup-AppDeployment'
 $bestPracticeKey = 'm365-apps-deployment'
@@ -60,8 +64,6 @@ function Get-IntuneOfficeSuiteApps {
         [Parameter(Mandatory)] [string] $GraphBaseUri
     )
 
-    $base = [uri] $GraphBaseUri
-    $expectedPathPrefix = $base.AbsolutePath.TrimEnd('/') + '/'
     $visited = [System.Collections.Generic.HashSet[string]]::new(
         [StringComparer]::OrdinalIgnoreCase
     )
@@ -72,26 +74,13 @@ function Get-IntuneOfficeSuiteApps {
         if (-not $visited.Add($nextUri)) {
             throw 'Microsoft Graph returned a pagination cycle for Microsoft 365 Apps deployments.'
         }
-        $parsedNext = $null
-        if (-not [uri]::TryCreate($nextUri, [UriKind]::Absolute, [ref] $parsedNext) -or
-            $parsedNext.Scheme -ne 'https' -or
-            -not [string]::Equals(
-                $parsedNext.Host,
-                $base.Host,
-                [StringComparison]::OrdinalIgnoreCase
-            ) -or
-            -not $parsedNext.AbsolutePath.StartsWith(
-                $expectedPathPrefix,
-                [StringComparison]::OrdinalIgnoreCase
-            )) {
-            throw 'Microsoft Graph returned a Microsoft 365 Apps next link outside the configured Graph API path.'
-        }
+        Assert-IntuneGraphCollectionUri -BaseUri $GraphBaseUri -InitialUri $InitialUri -Uri $nextUri
 
         $response = Invoke-WithTransientRetry -Description 'Read existing officeSuiteApp' -Action {
             Invoke-MgGraphRequest -Method GET -Uri $nextUri
         }
         $value = Get-IntuneAppDeploymentProperty -InputObject $response -Name 'value'
-        if (-not $value.Exists -or $null -eq $value.Value) {
+        if (-not $value.Exists -or $value.Value -isnot [System.Collections.IList]) {
             throw 'Microsoft Graph returned no Microsoft 365 Apps collection.'
         }
         foreach ($item in @($value.Value)) {
@@ -103,6 +92,10 @@ function Get-IntuneOfficeSuiteApps {
 
         $nextLink = Get-IntuneAppDeploymentProperty `
             -InputObject $response -Name '@odata.nextLink'
+        if ($nextLink.Exists -and $null -ne $nextLink.Value -and
+            ($nextLink.Value -isnot [string] -or [string]::IsNullOrWhiteSpace($nextLink.Value))) {
+            throw 'Microsoft Graph returned a malformed next link for Microsoft 365 Apps deployments.'
+        }
         $nextUri = if ($nextLink.Exists) { [string] $nextLink.Value } else { $null }
     }
 
@@ -127,7 +120,7 @@ if (-not $Context -or [string]::IsNullOrWhiteSpace([string] $Context.TenantAdmin
 
 $app = $Config.AppDeployment
 $tag = $Config.ManagedByTag
-$appsUri = "$($Config.Api.GraphBetaBaseUri)/deviceAppManagement/mobileApps"
+$appsUri = Resolve-IntuneGraphUri -BaseUri $Config.Api.GraphBetaBaseUri -RelativePath 'deviceAppManagement/mobileApps'
 
 # Read before write. A toolkit-owned officeSuiteApp is treated as already
 # compliant so re-runs do not create duplicates.

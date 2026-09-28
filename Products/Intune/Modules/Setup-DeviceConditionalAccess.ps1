@@ -37,6 +37,9 @@ $ConfirmPreference = 'None'
 
 . (Join-Path $PSScriptRoot 'IntuneRunLog.ps1')
 . (Join-Path $PSScriptRoot 'Invoke-WithTransientRetry.ps1')
+. (Join-Path $PSScriptRoot 'IntuneGraphClient.ps1')
+
+Assert-IntuneGraphBaseUri -BaseUri $Config.Api.GraphBaseUri
 
 function Get-IntuneCaProperty {
     param([AllowNull()] $InputObject, [Parameter(Mandatory)] [string] $Name)
@@ -131,38 +134,24 @@ function Test-IntuneCaOnlyAllowedProperties {
 function Get-IntuneConditionalAccessPolicies {
     param([Parameter(Mandatory)] [string] $GraphBaseUri)
 
-    $base = [uri] $GraphBaseUri
-    $expectedPathPrefix = $base.AbsolutePath.TrimEnd('/') + '/'
     $visited = [System.Collections.Generic.HashSet[string]]::new(
         [StringComparer]::OrdinalIgnoreCase
     )
     $policies = [System.Collections.Generic.List[object]]::new()
-    $nextUri = "$GraphBaseUri/identity/conditionalAccess/policies"
+    $initialUri = Resolve-IntuneGraphUri -BaseUri $GraphBaseUri -RelativePath 'identity/conditionalAccess/policies'
+    $nextUri = $initialUri
 
     while (-not [string]::IsNullOrWhiteSpace($nextUri)) {
         if (-not $visited.Add($nextUri)) {
             throw 'Microsoft Graph returned a pagination cycle for Conditional Access policies.'
         }
-        $parsedNext = $null
-        if (-not [uri]::TryCreate($nextUri, [UriKind]::Absolute, [ref] $parsedNext) -or
-            $parsedNext.Scheme -ne 'https' -or
-            -not [string]::Equals(
-                $parsedNext.Host,
-                $base.Host,
-                [StringComparison]::OrdinalIgnoreCase
-            ) -or
-            -not $parsedNext.AbsolutePath.StartsWith(
-                $expectedPathPrefix,
-                [StringComparison]::OrdinalIgnoreCase
-            )) {
-            throw 'Microsoft Graph returned a Conditional Access next link outside the configured Graph API path.'
-        }
+        Assert-IntuneGraphCollectionUri -BaseUri $GraphBaseUri -InitialUri $initialUri -Uri $nextUri
 
         $response = Invoke-WithTransientRetry -Description 'Read existing Conditional Access policies' -Action {
             Invoke-MgGraphRequest -Method GET -Uri $nextUri
         }
         $value = Get-IntuneCaPropertyResult $response 'value'
-        if (-not $value.Exists -or $null -eq $value.Value) {
+        if (-not $value.Exists -or $value.Value -isnot [System.Collections.IList]) {
             throw 'Microsoft Graph returned no Conditional Access policy collection.'
         }
         foreach ($policy in @($value.Value)) {
@@ -172,6 +161,10 @@ function Get-IntuneConditionalAccessPolicies {
             $policies.Add($policy)
         }
         $nextLink = Get-IntuneCaPropertyResult $response '@odata.nextLink'
+        if ($nextLink.Exists -and $null -ne $nextLink.Value -and
+            ($nextLink.Value -isnot [string] -or [string]::IsNullOrWhiteSpace($nextLink.Value))) {
+            throw 'Microsoft Graph returned a malformed next link for Conditional Access policies.'
+        }
         $nextUri = if ($nextLink.Exists) { [string] $nextLink.Value } else { $null }
     }
 
@@ -391,7 +384,7 @@ try {
         throw $reason
     }
 
-    $v1 = $Config.Api.GraphBaseUri
+    $v1 = $Config.Api.GraphBaseUri.TrimEnd('/')
     $appId = $Config.ConditionalAccess.EnrollmentAppId
     $displayName = $Config.ConditionalAccess.DisplayName
     $state = $Config.ConditionalAccess.DefaultState

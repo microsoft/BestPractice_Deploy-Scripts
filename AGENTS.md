@@ -37,4 +37,4 @@ whenever creating or updating a PR or work item.
 | `.github/copilot-instructions.md` | Pointer | Redirects Copilot to this entry point. |
 | `scripts/verify.ps1` | Executable verification | Local syntax and configuration checks. |
 | `Products/` | Implementation and product docs | Product behavior and operator instructions. |
-| [Responsible AI review](docs/Responsible-AI-Review.md) | Change review | Scope and safeguards of this context-consolidation change. |
+| [Responsible AI reviews](docs/Responsible-AI-Review.md) | Change reviews | Separate scope and safeguards for context consolidation and deployment remediation. |

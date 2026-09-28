@@ -131,6 +131,12 @@ If a module contains both failed and blocked actions, its summary is `FAILED`.
 The HTML report and JSON sidecar use the same precedence; a blocked action
 does not hide an operation or readback failure.
 
+JSON and HTML exports are attempted independently. A failed export emits a
+warning even without verbose output and does not replace an earlier deployment
+error, including with `$WarningPreference = 'Stop'`. Run-log cleanup still
+occurs. Preserve console warnings and surviving reports; old files are not
+evidence that the current export succeeded.
+
 ## Safety gates
 
 Default execution is read-only. Unsupported automation and unproven writes
