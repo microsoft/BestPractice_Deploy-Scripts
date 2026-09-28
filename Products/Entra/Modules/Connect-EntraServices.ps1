@@ -365,8 +365,6 @@ if ($ConnectGraph) {
         try {
             Connect-MgGraph -TenantId $targetTenantDomain -Scopes $requiredScopes `
                 -NoWelcome -ErrorAction Stop
-            Add-EntraConnectGuardLog -Service 'Graph' -Status 'Info' `
-                -ReasonKey 'connected' -Detail $guardDetail
         }
         catch {
             Add-EntraConnectGuardLog -Service 'Graph' -Status 'Failed' `
@@ -375,8 +373,29 @@ if ($ConnectGraph) {
         }
     }
 
-    $tenantIdentity = Get-EntraTenantIdentity -ExpectedDomain $targetTenantDomain `
-        -TenantAdminUpn $TenantAdminUpn -GraphBaseUri $GraphBaseUri
+    try {
+        $verifiedContext = Get-MgContext -ErrorAction Stop
+        if ([string]::IsNullOrWhiteSpace([string] $verifiedContext.Account) -or
+            $verifiedContext.Account -ine $TenantAdminUpn) {
+            throw 'Microsoft Graph signed in with a missing or different operator account. Rerun and select TenantAdminUpn at sign-in.'
+        }
+        $tenantIdentity = Get-EntraTenantIdentity -ExpectedDomain $targetTenantDomain `
+            -TenantAdminUpn $TenantAdminUpn -GraphBaseUri $GraphBaseUri
+        if (-not $graphConnected) {
+            Add-EntraConnectGuardLog -Service 'Graph' -Status 'Info' `
+                -ReasonKey 'connected' -Detail $guardDetail
+        }
+    }
+    catch {
+        $identityFailure = $_
+        Add-EntraConnectGuardLog -Service 'Graph' -Status 'Failed' `
+            -ReasonKey 'identity-verification-failed' -Detail @{ error = $identityFailure.Exception.Message }
+        try { Disconnect-MgGraph -ErrorAction Stop | Out-Null }
+        catch {
+            Write-Warning 'Invalid Graph context could not be disconnected. Close this PowerShell session before rerunning.' -WarningAction Continue
+        }
+        throw $identityFailure
+    }
 }
 
 [pscustomobject]@{

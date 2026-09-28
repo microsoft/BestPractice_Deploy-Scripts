@@ -6,6 +6,12 @@ nav_order: 5
 
 # Troubleshooting
 
+**JSON or HTML export warning:** preserve the console and any surviving report,
+then check the configured local output path and write permissions. Both formats
+are attempted independently and cleanup still runs. Warnings cannot replace an
+earlier deployment failure, even with `WarningPreference=Stop`; a previous file
+is not proof of a successful current export. No tenant rollback is implied.
+
 **Permission plan is not ready:** inspect the operation key in the report.
 Unverified write operations are intentionally guided-only; do not add scopes
 or bypass the manifest.

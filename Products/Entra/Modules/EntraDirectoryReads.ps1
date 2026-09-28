@@ -238,3 +238,105 @@ function Get-EntraGlobalAdminRecoveryState {
         RoleVia = 'none'
     }
 }
+
+function Assert-EntraWriteIdentity {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)] [string] $BaseUri,
+        [AllowNull()] [string] $TenantAdminUpn,
+        [AllowNull()] [string] $TenantId
+    )
+
+    $intendedTenant = [guid]::Empty
+    if ([string]::IsNullOrWhiteSpace($TenantAdminUpn) -or
+        -not [guid]::TryParse($TenantId, [ref] $intendedTenant) -or $intendedTenant -eq [guid]::Empty) {
+        throw 'Conditional Access writes require Context.TenantAdminUpn and the intended Context.TenantId GUID.'
+    }
+    $actual = Get-MgContext -ErrorAction Stop
+    $actualTenant = [guid]::Empty
+    if ($null -eq $actual -or $actual.Account -isnot [string] -or
+        [string]::IsNullOrWhiteSpace($actual.Account) -or $actual.TenantId -isnot [string] -or
+        $actual.Account -ine $TenantAdminUpn -or
+        -not [guid]::TryParse([string] $actual.TenantId, [ref] $actualTenant) -or
+        $actualTenant -ne $intendedTenant) {
+        throw 'Microsoft Graph context does not match the intended operator account and tenant. Reconnect to the approved tenant before applying Conditional Access.'
+    }
+    $organizations = Get-EntraGraphCollection -BaseUri $BaseUri `
+        -Uri "$BaseUri/organization?`$select=id" -Description 'Verify Conditional Access write tenant'
+    $organizationTenant = [guid]::Empty
+    if ($organizations.Count -ne 1 -or $organizations[0].id -isnot [string] -or
+        -not [guid]::TryParse([string] $organizations[0].id, [ref] $organizationTenant) -or
+        $organizationTenant -ne $intendedTenant) {
+        throw 'Microsoft Graph organization identity does not match the intended Conditional Access tenant.'
+    }
+}
+
+function Get-EntraVerifiedEmergencyAccess {
+    <#
+        Read-only verification shared by setup and each CA write boundary.
+        Caller markers and diagnostic files are not proof of directory state.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)] [string] $BaseUri,
+        [AllowEmptyCollection()] [string[]] $UserIds = @(),
+        [AllowEmptyCollection()] [string[]] $GroupIds = @(),
+        [Parameter(Mandatory)] [string] $Module,
+        [Parameter(Mandatory)] [string] $BestPracticeKey
+    )
+
+    $users = [string[]] @($UserIds)
+    $groups = [string[]] @($GroupIds)
+    $gaPrincipalIds = $null
+    foreach ($type in 'User', 'Group') {
+        $ids = if ($type -eq 'User') { $users } else { $groups }
+        foreach ($id in $ids) {
+            try {
+                if ([string]::IsNullOrWhiteSpace($id)) { throw 'Emergency-access principal ID must not be blank.' }
+                $encodedId = [uri]::EscapeDataString($id)
+                $enabledMemberIds = @()
+                if ($type -eq 'User') {
+                    $principal = Invoke-WithTransientRetry -Description 'Verify break-glass user' -Action {
+                        Invoke-MgGraphRequest -Method GET -Uri "$BaseUri/users/$encodedId`?`$select=id,accountEnabled,userPrincipalName"
+                    }
+                    if ($principal.id -isnot [string] -or $principal.id -ine $id) { throw 'Directory user response does not match the requested emergency-access ID.' }
+                    if ($principal.accountEnabled -isnot [bool] -or -not $principal.accountEnabled) {
+                        throw "Break-glass account $id is disabled or its enabled state could not be verified."
+                    }
+                }
+                else {
+                    $principal = Invoke-WithTransientRetry -Description 'Verify break-glass group' -Action {
+                        Invoke-MgGraphRequest -Method GET -Uri "$BaseUri/groups/$encodedId`?`$select=id,displayName"
+                    }
+                    if ($principal.id -isnot [string] -or $principal.id -ine $id) { throw 'Directory group response does not match the requested emergency-access ID.' }
+                    $members = Get-EntraGraphCollection -BaseUri $BaseUri `
+                        -Uri "$BaseUri/groups/$encodedId/transitiveMembers/microsoft.graph.user?`$select=id,accountEnabled,userPrincipalName" `
+                        -Description 'Read break-glass group members'
+                    $enabledMemberIds = @($members | Where-Object {
+                            $_.accountEnabled -is [bool] -and $_.accountEnabled -and
+                            -not [string]::IsNullOrWhiteSpace([string] $_.id)
+                        } | ForEach-Object { [string] $_.id })
+                    if ($enabledMemberIds.Count -eq 0) { throw "Break-glass group $id contains no enabled user account." }
+                }
+                if ($null -eq $gaPrincipalIds) { $gaPrincipalIds = Get-EntraGlobalAdminPrincipalId -BaseUri $BaseUri }
+                $role = Get-EntraGlobalAdminRecoveryState -BaseUri $BaseUri `
+                    -PrincipalId $id -PrincipalType $type -GlobalAdminPrincipalIds @($gaPrincipalIds) `
+                    -EnabledMemberIds $enabledMemberIds
+                if (-not $role.HasGlobalAdmin) {
+                    throw "Break-glass $type $id does not provide a permanently-assigned, tenant-wide Global Administrator role with no expiry."
+                }
+                $null = Add-EntraRunLogEntry -Module $Module -Action 'VerifyBreakGlass' -BestPracticeKey $BestPracticeKey `
+                    -Status 'Succeeded' -Disposition 'AlreadyCompliant' -Readback 'Verified' -Target $id `
+                    -Detail "Emergency-access $type is usable and provides permanent, tenant-wide Global Administrator recovery ($($role.RoleVia))."
+            }
+            catch {
+                $null = Add-EntraRunLogEntry -Module $Module -Action 'VerifyBreakGlass' -BestPracticeKey $BestPracticeKey `
+                    -Status 'Failed' -Disposition 'Blocked' -Readback 'Mismatch' -Target $id `
+                    -HttpStatusCode (Get-EntraHttpStatusCode -ErrorRecord $_) `
+                    -Detail "Emergency-access $type could not be verified. Resolve directory access, enabled membership and permanent Global Administrator assignment before rerunning: $($_.Exception.Message)"
+                throw
+            }
+        }
+    }
+    return [pscustomobject] @{ userIds = [string[]] @($users); groupIds = [string[]] @($groups) }
+}

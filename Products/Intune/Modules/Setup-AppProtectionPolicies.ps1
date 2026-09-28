@@ -31,6 +31,9 @@ $ConfirmPreference = 'None'
 . (Join-Path $PSScriptRoot 'IntuneAssignmentScope.ps1')
 . (Join-Path $PSScriptRoot 'IntuneGraphClient.ps1')
 
+Assert-IntuneGraphBaseUri -BaseUri $Config.Api.GraphBaseUri
+Assert-IntuneGraphBaseUri -BaseUri $Config.Api.GraphBetaBaseUri
+
 function Get-IntuneObjectProperty {
     [CmdletBinding()]
     param(
@@ -87,8 +90,6 @@ function Get-IntuneGraphCollection {
         [int[]] $ExpectedStatusCodes = @()
     )
 
-    $base = [uri] $GraphBaseUri
-    $expectedPathPrefix = $base.AbsolutePath.TrimEnd('/') + '/'
     $visited = [System.Collections.Generic.HashSet[string]]::new(
         [StringComparer]::OrdinalIgnoreCase
     )
@@ -100,18 +101,7 @@ function Get-IntuneGraphCollection {
             throw "Microsoft Graph returned a pagination cycle for $EvidenceTarget."
         }
 
-        $parsedNext = $null
-        if (-not [uri]::TryCreate($nextUri, [UriKind]::Absolute, [ref] $parsedNext) -or
-            $parsedNext.Scheme -ne 'https' -or
-            -not [string]::Equals($parsedNext.Host, $base.Host, [StringComparison]::OrdinalIgnoreCase)) {
-            throw "Microsoft Graph returned a next link outside the approved Microsoft Graph host for $EvidenceTarget."
-        }
-        if (-not $parsedNext.AbsolutePath.StartsWith(
-                $expectedPathPrefix,
-                [StringComparison]::OrdinalIgnoreCase
-            )) {
-            throw "Microsoft Graph returned a next link outside the configured Graph API path for $EvidenceTarget."
-        }
+        Assert-IntuneGraphCollectionUri -BaseUri $GraphBaseUri -InitialUri $InitialUri -Uri $nextUri
 
         $response = Invoke-WithTransientRetry `
             -Description "Get $EvidenceTarget" `
@@ -130,7 +120,7 @@ function Get-IntuneGraphCollection {
             }
 
         $valueProperty = Get-IntuneObjectProperty -InputObject $response -Name 'value'
-        if (-not $valueProperty.Exists -or $null -eq $valueProperty.Value) {
+        if (-not $valueProperty.Exists -or $valueProperty.Value -isnot [System.Collections.IList]) {
             throw "Microsoft Graph returned no value collection for $EvidenceTarget."
         }
         foreach ($item in @($valueProperty.Value)) {
@@ -142,6 +132,10 @@ function Get-IntuneGraphCollection {
 
         $nextLinkProperty = Get-IntuneObjectProperty `
             -InputObject $response -Name '@odata.nextLink'
+        if ($nextLinkProperty.Exists -and $null -ne $nextLinkProperty.Value -and
+            ($nextLinkProperty.Value -isnot [string] -or [string]::IsNullOrWhiteSpace($nextLinkProperty.Value))) {
+            throw "Microsoft Graph returned a malformed next link for $EvidenceTarget."
+        }
         $nextUri = if ($nextLinkProperty.Exists) {
             [string] $nextLinkProperty.Value
         }
@@ -403,7 +397,7 @@ if ([string] $Context.AssignmentScope -eq 'TenantWide' -and
 # Write phase: create the Level 1 policy per platform, target the core apps,
 # and assign. Idempotent on the managed-by tag.
 # ---------------------------------------------------------------------------
-$beta = $Config.Api.GraphBetaBaseUri
+$beta = $Config.Api.GraphBetaBaseUri.TrimEnd('/')
 $pilotGroup = if (-not [string]::IsNullOrWhiteSpace([string] $Context.PilotGroupId)) { $Context.PilotGroupId } else { $PilotGroupId }
 $assignmentTarget = $null
 $assignmentDetail = $null

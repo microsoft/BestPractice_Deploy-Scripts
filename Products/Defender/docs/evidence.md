@@ -6,10 +6,19 @@ nav_order: 3
 
 # Evidence and reports
 
-Each run writes a redacted JSON sidecar and HTML report under
+Each run attempts to write a redacted JSON sidecar and HTML report under
 `Products\Defender\Reports\`. Entries include module, action, status,
 disposition, best-practice key, HTTP status when available, retry metadata,
 and readback status.
+
+JSON and HTML exports are independent: either can succeed when the other fails.
+Failures produce explicit warnings rather than verbose-only messages. The
+original deployment error is preserved and run-log globals are cleared even
+when `$WarningPreference = 'Stop'`. An export warning does not mean tenant
+changes were rolled back or that the surviving report proves complete
+deployment. Preserve the console and any surviving output, correct the local
+path/permissions, and check run IDs and timestamps rather than trusting an old
+file at the same path.
 
 Retry entries include the HTTP status when available and identify when a
 message-only cmdlet signature classified an EXO, IPPS, or SPO failure as

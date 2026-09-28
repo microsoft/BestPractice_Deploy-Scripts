@@ -114,8 +114,6 @@ function Get-IntuneEnrollmentCollection {
         [Parameter(Mandatory)] [string] $EvidenceTarget
     )
 
-    $base = [uri] $GraphBaseUri
-    $expectedPathPrefix = $base.AbsolutePath.TrimEnd('/') + '/'
     $visited = [System.Collections.Generic.HashSet[string]]::new(
         [StringComparer]::OrdinalIgnoreCase
     )
@@ -126,18 +124,7 @@ function Get-IntuneEnrollmentCollection {
         if (-not $visited.Add($nextUri)) {
             throw "Microsoft Graph returned a pagination cycle for $EvidenceTarget."
         }
-        $parsedNext = $null
-        if (-not [uri]::TryCreate($nextUri, [UriKind]::Absolute, [ref] $parsedNext) -or
-            $parsedNext.Scheme -ne 'https' -or -not $parsedNext.IsDefaultPort -or
-            $parsedNext.UserInfo -ne '' -or $parsedNext.Fragment -ne '' -or
-            -not [string]::Equals($parsedNext.Host, $base.Host, [StringComparison]::OrdinalIgnoreCase) -or
-            $parsedNext.AbsolutePath -ne ([uri] $InitialUri).AbsolutePath -or
-            -not $parsedNext.AbsolutePath.StartsWith(
-                $expectedPathPrefix,
-                [StringComparison]::OrdinalIgnoreCase
-            )) {
-            throw "Microsoft Graph returned a next link outside the configured Graph API path for $EvidenceTarget."
-        }
+        Assert-IntuneGraphCollectionUri -BaseUri $GraphBaseUri -InitialUri $InitialUri -Uri $nextUri
 
         $response = Invoke-WithTransientRetry -Description "Get $EvidenceTarget" -Action {
             try {
@@ -161,7 +148,8 @@ function Get-IntuneEnrollmentCollection {
         }
         $nextLink = Get-IntuneEnrollmentProperty `
             -InputObject $response -Name '@odata.nextLink'
-        if ($nextLink.Exists -and $null -ne $nextLink.Value -and $nextLink.Value -isnot [string]) {
+        if ($nextLink.Exists -and $null -ne $nextLink.Value -and
+            ($nextLink.Value -isnot [string] -or [string]::IsNullOrWhiteSpace($nextLink.Value))) {
             throw "Microsoft Graph returned a malformed next link for $EvidenceTarget."
         }
         $nextUri = if ($nextLink.Exists) { [string] $nextLink.Value } else { $null }

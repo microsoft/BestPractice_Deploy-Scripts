@@ -132,8 +132,6 @@ function Get-ComplianceCollection {
         [int[]] $ExpectedStatusCodes = @()
     )
 
-    $base = [uri] $GraphBaseUri
-    $pathPrefix = $base.AbsolutePath.TrimEnd('/') + '/'
     $visited = [System.Collections.Generic.HashSet[string]]::new(
         [StringComparer]::OrdinalIgnoreCase
     )
@@ -144,15 +142,7 @@ function Get-ComplianceCollection {
         if (-not $visited.Add($nextUri)) {
             throw "Microsoft Graph returned a pagination cycle for $EvidenceTarget."
         }
-        $parsed = $null
-        if (-not [uri]::TryCreate($nextUri, [UriKind]::Absolute, [ref] $parsed) -or
-            $parsed.Scheme -ne 'https' -or -not $parsed.IsDefaultPort -or
-            $parsed.UserInfo -ne '' -or $parsed.Fragment -ne '' -or
-            -not [string]::Equals($parsed.Host, $base.Host, [StringComparison]::OrdinalIgnoreCase) -or
-            $parsed.AbsolutePath -ne ([uri] $InitialUri).AbsolutePath -or
-            -not $parsed.AbsolutePath.StartsWith($pathPrefix, [StringComparison]::OrdinalIgnoreCase)) {
-            throw "Microsoft Graph returned an unsafe next link for $EvidenceTarget."
-        }
+        Assert-IntuneGraphCollectionUri -BaseUri $GraphBaseUri -InitialUri $InitialUri -Uri $nextUri
 
         $response = Invoke-WithTransientRetry -Description "Get $EvidenceTarget" `
             -ExpectedStatusCodes $ExpectedStatusCodes -Action {
@@ -183,7 +173,8 @@ function Get-ComplianceCollection {
             $items.Add($item)
         }
         $next = Get-ComplianceProperty -InputObject $response -Name '@odata.nextLink'
-        if ($next.Exists -and $null -ne $next.Value -and $next.Value -isnot [string]) {
+        if ($next.Exists -and $null -ne $next.Value -and
+            ($next.Value -isnot [string] -or [string]::IsNullOrWhiteSpace($next.Value))) {
             throw "Microsoft Graph returned a malformed next link for $EvidenceTarget."
         }
         $nextUri = if ($next.Exists) { [string] $next.Value } else { $null }

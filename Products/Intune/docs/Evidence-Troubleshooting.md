@@ -6,6 +6,18 @@ parent: Intune
 
 # Intune evidence and troubleshooting
 
+An invalid Graph base stops before authentication and may precede run-log
+initialization. Correct the private configuration using the
+[endpoint contract](Configuration-Reference.md#graph-endpoint-boundary), not a
+skip switch. A rejected continuation link stops that inventory before the next
+SDK request; retain the sanitized failure and investigate the service response.
+Do not substitute a cross-collection link or remove the boundary.
+
+A missing/wrong account after sign-in stops setup even if the tenant matches.
+Select the requested `TenantAdminUpn` account on rerun. If disconnecting the
+invalid context also fails, close PowerShell and open a fresh session. The
+original identity error remains authoritative; do not add broader consent.
+
 ## Evidence handling
 
 HTML and JSON reports are tenant evidence. Keep them in the approved private

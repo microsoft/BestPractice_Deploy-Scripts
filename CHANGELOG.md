@@ -68,6 +68,23 @@ landed but not yet been tagged in a release appear under **Unreleased**.
 
 ### Fixed
 
+- [Entra] Stop after opt-in emergency-account creation, before Conditional
+  Access writes. Require manual credential and permanent Global Administrator
+  setup, configured object IDs and current-run verification; avoid duplicate
+  creation on rerun. Use only a validated in-memory module result for CA
+  exclusions, not editable JSON evidence, and reject malformed/stale results.
+- [Entra, Intune] Verify the actual operator after fresh Graph sign-in before
+  successful connection evidence or setup. Invalid account/tenant contexts
+  trigger disconnect without masking the original error; scopes are unchanged.
+- [Defender] Restore object-property initialization in desired-state
+  comparisons while retaining scalar string comparisons. Attempt JSON and
+  HTML exports independently, warn on failures, preserve deployment errors,
+  and always clean up run-log state.
+- [Intune] Validate stable and beta Graph bases before authentication and
+  standalone app dispatch. Reject unsafe endpoint components and continuation
+  links outside the exact collection authority/path, while allowing legitimate
+  paging queries and supported Graph cloud hosts.
+
 - [Defender] Target Graph sign-in at the delegated customer and verify the
   requested operator before reusing a cached session or reporting preflight
   success. Explicit tenant IDs retain precedence; permissions and blocked
@@ -129,6 +146,15 @@ landed but not yet been tagged in a release appear under **Unreleased**.
   readback blocks continuation with portal verification guidance.
 
 ### Security
+
+- **[Entra] Standalone Conditional Access write verification.** Close an
+  inherited standalone-module gap by rechecking the actual Graph operator and
+  intended tenant, enabled emergency users/group members and permanent
+  tenant-wide Global Administrator recovery before each create or adoption
+  write. Standalone writes now require `Context.TenantId`; assessment/WhatIf
+  retain their existing gates. Caller markers and diagnostic JSON never
+  authorize writes. No roles/scopes are added, and existing-policy state and
+  customer exclusions remain preserved.
 
 - **[Purview] Tenant validation rejects broader Graph consent.** The read-only
   validator now checks the effective token, disconnects contexts containing

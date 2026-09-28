@@ -19,10 +19,25 @@ function Copy-TestValue {
 }
 
 # Synthetic responses only. Any unexpected request fails instead of reaching Graph.
+function Get-MgContext {
+    [CmdletBinding()]
+    param()
+    return [pscustomobject] @{ Account = 'admin@example.invalid'; TenantId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' }
+}
+
 function Invoke-MgGraphRequest {
     [CmdletBinding()]
     param([string] $Method, [string] $Uri, $Body, [string] $ContentType)
     $mock = $global:IdentityReviewMock
+    if ($Method -eq 'GET' -and $Uri -match '/organization\?') {
+        return @{ value = @(@{ id = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' }) }
+    }
+    if ($Method -eq 'GET' -and $Uri -match '/users/11111111-1111-1111-1111-111111111111\?') {
+        return @{ id = '11111111-1111-1111-1111-111111111111'; accountEnabled = $true; userPrincipalName = 'recovery@example.invalid' }
+    }
+    if ($Method -eq 'GET' -and $Uri -match '/roleManagement/directory/roleAssignmentScheduleInstances\?') {
+        return @{ value = @(@{ principalId = '11111111-1111-1111-1111-111111111111'; assignmentType = 'Assigned'; endDateTime = $null; directoryScopeId = '/' }) }
+    }
     if ($Method -eq 'GET' -and $Uri -match '/policies/identitySecurityDefaultsEnforcementPolicy$') {
         return @{ isEnabled = $mock.SecurityDefaults }
     }
@@ -70,6 +85,7 @@ function Invoke-BaselineScenario {
     $global:EntraRunLogPath = $null
     $context = @{
         TenantAdminUpn = 'admin@example.invalid'
+        TenantId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
         AssignmentScope = $(if ($TenantWide) { 'TenantWide' } else { 'PilotGroup' })
         PilotGroupId = '33333333-3333-3333-3333-333333333333'
         BreakGlassUserIds = @('11111111-1111-1111-1111-111111111111')

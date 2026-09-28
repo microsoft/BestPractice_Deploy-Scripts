@@ -16,6 +16,14 @@ permalink: /entra/
 > must be verified disabled before any tenant write. The toolkit never disables
 > it or performs the transition automatically.
 
+Every actual Conditional Access create or adoption write also revalidates the
+current Graph account/tenant and the supplied emergency users/groups against
+live directory and permanent Global Administrator role state. Standalone
+writes require the intended `Context.TenantId` GUID as well as
+`Context.TenantAdminUpn`; caller verification flags are not proof.
+Assessment/WhatIf remain available without these additional write-only reads.
+See [standalone prerequisites](docs/Operator-Guide.md#standalone-conditional-access-writes).
+
 PowerShell automation that deploys the **Conditional Access baseline** from the
 Microsoft **Identity Protection Best Practice Deployment** guide for a Microsoft
 365 **Business Premium** tenant (Microsoft Entra ID P1). Built to the same
@@ -100,8 +108,12 @@ distinguishes `P1Baseline`, `P1Hardened` and the P2 guidance boundary. See
 [coverage, prerequisites and current Microsoft references](docs/Coverage.md#p1-additions-and-p2-boundary).
 
 Plus **emergency access (break-glass)** handling (guide Priority 1): the toolkit
-verifies a configured break-glass account/group, or creates a dedicated
-cloud-only one, and excludes it from every policy.
+verifies a configured break-glass account/group before using it as an exclusion.
+Opt-in creation of a cloud-only account stops the run before Conditional Access
+writes. Complete credential setup, permanent Global Administrator assignment
+and recovery testing, configure its object ID, then rerun verification.
+Verified exclusions flow through a validated in-memory module result, never
+through the editable `entra-breakglass.json` diagnostic file.
 
 The **"Require MFA for Intune enrollment"** Conditional Access policy is
 intentionally **not** part of this product — it belongs to the Intune toolkit,
@@ -192,6 +204,11 @@ delegated scopes in `Config\EntraConfig.psd1`, reuses a cached Graph context
 only when the account and every required scope match, and verifies the live
 tenant through `/organization`. For GDAP, it authenticates directly to the
 customer domain and rejects a cached context for another customer.
+
+After a fresh sign-in, the actual Graph account must also match
+`-TenantAdminUpn` (case-insensitively) before successful connection evidence or
+setup. A missing/wrong account or failed tenant verification stops the run and
+attempts to disconnect the invalid context; consent scopes are unchanged.
 
 Current Microsoft Graph Authentication modules use Windows Authentication
 Manager (WAM) on a supported interactive Windows desktop. A first consent,

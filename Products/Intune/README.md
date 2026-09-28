@@ -461,6 +461,18 @@ context left over from a different tenant is rejected and reconnected on a
 direct run too. For GDAP, the toolkit authenticates directly to the customer
 domain.
 
+The actual account after fresh sign-in must match `-TenantAdminUpn`
+case-insensitively before success evidence or setup. Missing/wrong accounts and
+tenant-verification failures stop the run and trigger an invalid-context
+disconnect attempt. No additional Graph scopes are requested.
+
+Both Graph API bases are validated before authentication. Only approved
+Microsoft Graph cloud hosts over HTTPS/default port 443, with a `/v1.0` or
+`/beta` base path, are accepted. Query strings, user information, fragments,
+extra or ambiguous base path components are rejected. Collection continuations
+must retain the exact collection path and authority; paging queries remain
+supported. See [configuration](docs/Configuration-Reference.md#graph-endpoint-boundary).
+
 **Scope-set version history.** Intune 0.2.0's pilot requested only the five
 read scopes needed by the read-only assessments implemented at the time.
 Intune 0.3.0's authentication rewrite requests the full eleven-scope set as a

@@ -273,6 +273,7 @@ function Get-IntuneTenantIdentity {
 
 $tenantIdentity = $null
 if ($ConnectGraph) {
+    Assert-IntuneGraphBaseUri -BaseUri $GraphBaseUri
     Register-IntuneSensitiveValue -Value $DelegatedOrganization
     if ($TenantAdminUpn -notmatch '@(?<domain>[^@\s]+)$') {
         throw 'Unable to derive an expected tenant domain from TenantAdminUpn.'
@@ -385,8 +386,6 @@ if ($ConnectGraph) {
         try {
             Connect-MgGraph -TenantId $targetTenantDomain -Scopes $requiredScopes `
                 -NoWelcome -ErrorAction Stop
-            Add-IntuneConnectGuardLog -Service 'Graph' -Status 'Info' `
-                -ReasonKey 'connected' -Detail $guardDetail
         }
         catch {
             Add-IntuneConnectGuardLog -Service 'Graph' -Status 'Failed' `
@@ -395,8 +394,29 @@ if ($ConnectGraph) {
         }
     }
 
-    $tenantIdentity = Get-IntuneTenantIdentity -ExpectedDomain $targetTenantDomain `
-        -TenantAdminUpn $TenantAdminUpn -GraphBaseUri $GraphBaseUri
+    try {
+        $verifiedContext = Get-MgContext -ErrorAction Stop
+        if ([string]::IsNullOrWhiteSpace([string] $verifiedContext.Account) -or
+            $verifiedContext.Account -ine $TenantAdminUpn) {
+            throw 'Microsoft Graph signed in with a missing or different operator account. Rerun and select TenantAdminUpn at sign-in.'
+        }
+        $tenantIdentity = Get-IntuneTenantIdentity -ExpectedDomain $targetTenantDomain `
+            -TenantAdminUpn $TenantAdminUpn -GraphBaseUri $GraphBaseUri
+        if (-not $graphConnected) {
+            Add-IntuneConnectGuardLog -Service 'Graph' -Status 'Info' `
+                -ReasonKey 'connected' -Detail $guardDetail
+        }
+    }
+    catch {
+        $identityFailure = $_
+        Add-IntuneConnectGuardLog -Service 'Graph' -Status 'Failed' `
+            -ReasonKey 'identity-verification-failed' -Detail @{ error = $identityFailure.Exception.Message }
+        try { Disconnect-MgGraph -ErrorAction Stop | Out-Null }
+        catch {
+            Write-Warning 'Invalid Graph context could not be disconnected. Close this PowerShell session before rerunning.' -WarningAction Continue
+        }
+        throw $identityFailure
+    }
 }
 
 [pscustomobject]@{

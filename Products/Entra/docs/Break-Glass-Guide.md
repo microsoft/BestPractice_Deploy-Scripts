@@ -32,7 +32,33 @@ break-glass exclusion.** You give it one of two ways:
 
 2. **Let the toolkit create one.** Set `CreateAccountIfMissing = $true`. The
    `Setup-EmergencyAccess` module creates a dedicated **cloud-only** account
-   (`break-glass-emergency@<your-domain>`) and excludes it from every policy.
+   (`break-glass-emergency@<your-domain>`) without an admin role, then **stops
+   before Conditional Access writes**. It does not publish the new account
+   as a verified exclusion. Complete the steps below before rerunning.
+
+The proposed UPN is checked before creation. If it already exists, the toolkit
+stops for manual configuration instead of creating a duplicate or silently
+adopting it. A failed directory read also stops creation. `-WhatIf` creates
+nothing and does not manufacture a verified exclusion. Skipping
+`Setup-EmergencyAccess` withholds Conditional Access writes even when IDs
+are present in configuration.
+
+Verified user/group IDs are returned in memory to the orchestrator, which
+checks the result contract and current run before copying exclusions into the
+CA context. `entra-breakglass.json` is diagnostic only: replacing its IDs or
+markers does not authorize or alter deployment. A missing/malformed module
+result stops the run. This is not protection against arbitrary code running
+inside the same PowerShell process.
+
+The public CA module independently repeats read-only identity and emergency
+principal verification before every actual POST/PATCH, including standalone
+calls and adoption of enabled policies. It uses copied verified IDs, not
+caller-supplied verification markers or diagnostic files. Standalone writes
+need the intended tenant GUID and operator UPN; assessment/WhatIf do not run
+these additional write-only checks. The verifier never creates accounts or
+grants roles. Directory verification and the CA write are separate operations:
+concurrent changes can still invalidate recovery, so operational recovery
+testing and change control remain required.
 
 Under the default configuration, every policy the toolkit creates excludes
 the break-glass principal, including report-only policies. This is the
@@ -55,7 +81,8 @@ The script never performs that transition.
 ## After a break-glass account is created
 
 The toolkit sets a random password that it **never writes to logs or evidence**
-(so it cannot leak). You must finish the setup by hand:
+and never displays it. Creation is not evidence of recoverable access. You must
+finish the setup by hand:
 
 1. In the Microsoft Entra admin center, open the account and **reset its
    password** to a long, unique value.
@@ -71,13 +98,19 @@ The toolkit sets a random password that it **never writes to logs or evidence**
 5. Maintain at least two cloud-only emergency accounts on the tenant's
    `.onmicrosoft.com` domain, securely store their credentials, monitor every
    use, and test sign-in and administrative recovery at least every 90 days.
+6. Put the prepared account's object ID in
+   `ConditionalAccess.BreakGlass.ExcludeUserIds` in the private configuration
+   and rerun with `-WhatIf`. The next run must verify it is enabled and holds a
+   permanent, tenant-wide Global Administrator assignment with no expiry.
+   Review that evidence before a separately approved apply.
 
 These steps follow [Microsoft's emergency-access guidance](https://learn.microsoft.com/entra/identity/role-based-access-control/security-emergency-access),
 checked on 2026-09-25. The script's account creation, role checks, and
 exclusion evidence do not replace an independently tested recovery procedure.
 
-Every toolkit run finishes with a read-only deployment health check unless you
-use `-SkipDeploymentHealth`. It verifies that the emergency principals remain
+Runs that reach the health stage perform a read-only deployment health check
+unless you use `-SkipDeploymentHealth`. Creation handoff and earlier failures
+stop before that stage; later modules are recorded as not started. Health verifies that the emergency principals remain
 enabled, still provide a tenant-wide Global Administrator role through an
 active role assignment schedule instance with no expiry, and remain excluded
 from enforcing Conditional Access policies. Temporary PIM activations and

@@ -126,6 +126,7 @@ $resolvedTenantId = $null
 . (Join-Path $moduleRoot 'IntuneRunLog.ps1')
 . (Join-Path $moduleRoot 'Invoke-WithTransientRetry.ps1')
 . (Join-Path $moduleRoot 'Write-IntuneHtmlReport.ps1')
+. (Join-Path $moduleRoot 'IntuneGraphClient.ps1')
 
 function Test-IntuneConfigContract {
     [CmdletBinding()]
@@ -145,6 +146,8 @@ function Test-IntuneConfigContract {
     if (-not $Config.BestPracticeItems) {
         throw 'Intune configuration must define at least one BestPracticeItems entry.'
     }
+    Assert-IntuneGraphBaseUri -BaseUri $Config.Api.GraphBaseUri
+    Assert-IntuneGraphBaseUri -BaseUri $Config.Api.GraphBetaBaseUri
     if ([string]::IsNullOrWhiteSpace([string] $Config.PolicyCatalog.ManifestPath)) {
         throw 'PolicyCatalog.ManifestPath must identify the imported catalog manifest.'
     }
