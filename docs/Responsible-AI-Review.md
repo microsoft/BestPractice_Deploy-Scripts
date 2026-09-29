@@ -150,7 +150,7 @@ missing roles, invalid sign-in and incomplete reports.
 ### Transparency and Accountability
 
 The work is AI-assisted engineering; maintainers must review generated changes
-and verify claims. No tenant pilot has been performed for these changes.
+and verify claims. The local review did not perform a tenant pilot.
 Explicit blocked/failed handoff evidence separates created accounts from
 verified recovery access. Local exports can fail independently; warnings are
 not rollback or deployment-success evidence. Release approval remains with
@@ -162,7 +162,7 @@ Run the verification commands in [conventions](conventions.md#validation-and-def
 including `Test-DefenderComparableValues.ps1` and
 `Test-DeploymentSafeguards.ps1`. Compare against PR #7's merged baseline,
 `24ee35c`, and preserve local command output separately from pilot evidence.
-Before release, the deployment owner must approve and retain targeted and
+The release gate requires the deployment owner to approve and retain targeted and
 orchestrator `-WhatIf` pilot evidence, then validate any separately approved
 apply and recovery path. Stop release if role recovery, endpoint support,
 readback or evidence cannot be established.
@@ -192,8 +192,14 @@ pilot recovery validation is still required.
 
 ### Decision
 
-Local review only; **release readiness is blocked pending approved tenant
-validation and maintainer review**. The deployment and identity owners must
-close the pilot gap before release. Maintainers own disposition of unrelated
-whole-repository quality findings; this change does not silently suppress or
-repair those findings. No new AI runtime evaluation is applicable.
+**Public-release approvals finalized.** On 2026-09-29, the maintainer confirmed
+that the outstanding approvals, including the deployment-safeguard release
+gate, were finalized. This supersedes the earlier pending-release decision.
+This entry records that human confirmation; it does not represent a new
+tenant test or independent verification of pilot evidence by the documentation
+update. Deployment and identity owners retain responsibility for the supporting
+evidence and tenant-specific pilot and recovery approval. Existing feature
+restrictions and runtime safety gates remain unchanged. Maintainers own
+disposition of unrelated whole-repository quality findings; this change does
+not silently suppress or repair those findings. No new AI runtime evaluation
+is applicable.

@@ -23,9 +23,9 @@ tenants — by partners/MSPs and in-house IT teams alike.
 | Product | Toolkit | Status |
 |---|---|---|
 | [Microsoft Purview](purview/) — Data Security baseline (license-aware: Business Premium and up) | `Products/Purview/` | ✅ Available |
-| [Microsoft Entra](entra/) — Conditional Access baseline (report-only, break-glass safe) | `Products/Entra/` | Candidate; release authorization required |
-| [Microsoft Intune](intune/) — device management & enrollment baseline | `Products/Intune/` | Candidate; release authorization required |
-| [Microsoft Defender](defender/) - read-only default with pilot-validated ASR Audit configuration | `Products/Defender/` | Candidate; release authorization required |
+| [Microsoft Entra](entra/) — Conditional Access baseline (report-only, break-glass safe) | `Products/Entra/` | ✅ Available |
+| [Microsoft Intune](intune/) — device management & enrollment baseline | `Products/Intune/` | ✅ Available |
+| [Microsoft Defender](defender/) - read-only default with pilot-validated ASR Audit configuration | `Products/Defender/` | ✅ Available |
 
 > 🗺️ **See the method at a glance:** the
 > [**Purview Deployment Framework**](purview/deployment-framework/) is an

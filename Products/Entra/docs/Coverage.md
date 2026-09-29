@@ -123,8 +123,8 @@ before enforcement. References checked September 25, 2026:
 
 ### API and source verification for the additions
 
-References checked **2026-09-24**. No live tenant validation of the additions
-has been performed.
+References checked **2026-09-24**. That source review did not perform live
+tenant validation of the additions.
 
 | Operation | Surface, access and handling |
 |---|---|
@@ -133,9 +133,12 @@ has been performed.
 | Set authentication flow / user action / strength | Documented v1.0 CA body fields, no new endpoint or permission; strength ID is Microsoft's documented built-in phishing-resistant policy |
 | Recovery | Human-approved portal disable/delete or restoration of recorded prior settings; no automatic rollback, rename, method change or Security Defaults transition |
 
-The identity owner is responsible for method readiness, entitlement, recovery
-and pilot sign-off. The product owner and security/permissions reviewer must
-review the addition before release. Deterministic fixtures check requests,
+The maintainer confirmed on **2026-09-29** that public-release approvals for
+these additions, including product-owner and security/permissions review, are
+finalized. This records human approval, not a new tenant test by this
+documentation update. The identity owner remains responsible for tenant-specific
+method readiness, entitlement, recovery and pilot sign-off.
+Deterministic fixtures check requests,
 readback mismatch, no-write previews, selection and existing-policy preservation;
 they do not establish service behavior or effective tenant access.
 

@@ -68,6 +68,13 @@ landed but not yet been tagged in a release appear under **Unreleased**.
 
 ### Fixed
 
+- **[Site] Product availability.** Mark Defender, Intune, and Entra as
+  Available in the repository and documentation-site product tables following
+  maintainer confirmation on 2026-09-29 that public-release approvals are
+  finalized. Update the deployment-safeguard and Entra release-approval records
+  accordingly. Product-specific scope, tenant pilot requirements, and feature
+  restrictions remain unchanged.
+
 - [Entra] Stop after opt-in emergency-account creation, before Conditional
   Access writes. Require manual credential and permanent Global Administrator
   setup, configured object IDs and current-run verification; avoid duplicate
