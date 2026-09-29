@@ -72,8 +72,9 @@ landed but not yet been tagged in a release appear under **Unreleased**.
   Available in the repository and documentation-site product tables following
   maintainer confirmation on 2026-09-29 that public-release approvals are
   finalized. Update the deployment-safeguard and Entra release-approval records
-  accordingly. Product-specific scope, tenant pilot requirements, and feature
-  restrictions remain unchanged.
+  accordingly, and declare Entra's approved availability boundary in its
+  authoritative product README. Product-specific scope, tenant pilot
+  requirements, and feature restrictions remain unchanged.
 
 - [Entra] Stop after opt-in emergency-account creation, before Conditional
   Access writes. Require manual credential and permanent Global Administrator
