@@ -184,9 +184,12 @@ access in the approved pilot instead of inventing a new role requirement.
 Offline tests cover enabled/disabled/unknown state, missing/null/non-Boolean
 responses, 403, bounded transient retry, standalone writers, full orchestration,
 WhatIf, reruns, partial failure, corrected readback, existing aliases,
-pagination, duplicate blocking and HTML/JSON evidence. Fresh direct/GDAP
-pilot preview, app/device behavior, effective role/license checks and manual
-transition/recovery evidence remain human release gates.
+pagination, duplicate blocking and HTML/JSON evidence. The maintainer confirmed
+on **2026-09-29** that the public-release approvals for this transition guidance
+are finalized. This records human approval, not new tenant testing by this
+documentation update. Direct/GDAP pilot preview, app/device behavior, effective
+role/license checks and manual transition/recovery evidence remain required
+for each tenant deployment.
 
 ## Microsoft references
 

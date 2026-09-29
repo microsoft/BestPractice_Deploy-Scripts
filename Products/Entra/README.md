@@ -8,6 +8,12 @@ permalink: /entra/
 
 # Microsoft Entra Best Practice Toolkit
 
+> **Available at the approved release scope.** The maintainer confirmed that
+> public-release approvals were finalized on September 29, 2026. Availability
+> covers the documented Conditional Access baseline; report-only defaults,
+> emergency-access verification, tenant-specific pilot requirements, and
+> existing feature restrictions remain unchanged.
+
 > ⚠️ **Write-capable. Pilot first, and keep a break-glass account.**
 > This product creates real Conditional Access policies in your tenant. Every
 > new policy is **report-only** by default and the default configuration

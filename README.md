@@ -11,9 +11,9 @@ partners/MSPs and in-house IT teams alike.
 | Product | Toolkit | Docs | Status |
 |---------|---------|------|--------|
 | Microsoft Purview (Data Security baseline for Business Premium) | [`Products/Purview/`](Products/Purview/README.md) | [Site](https://microsoft.github.io/BestPractice_Deploy-Scripts/purview/) | Available |
-| Microsoft Defender (read-only default with pilot-validated ASR Audit configuration) | [`Products/Defender/`](Products/Defender/README.md) | [Site](https://microsoft.github.io/BestPractice_Deploy-Scripts/defender/) | Candidate; release authorization required |
-| Microsoft Intune (device management & enrollment baseline) | [`Products/Intune/`](Products/Intune/README.md) | [Site](https://microsoft.github.io/BestPractice_Deploy-Scripts/intune/) | Candidate; release authorization required |
-| Microsoft Entra (Conditional Access baseline for Business Premium) | [`Products/Entra/`](Products/Entra/README.md) | [Site](https://microsoft.github.io/BestPractice_Deploy-Scripts/entra/) | Candidate; release authorization required |
+| Microsoft Defender (read-only default with pilot-validated ASR Audit configuration) | [`Products/Defender/`](Products/Defender/README.md) | [Site](https://microsoft.github.io/BestPractice_Deploy-Scripts/defender/) | Available |
+| Microsoft Intune (device management & enrollment baseline) | [`Products/Intune/`](Products/Intune/README.md) | [Site](https://microsoft.github.io/BestPractice_Deploy-Scripts/intune/) | Available |
+| Microsoft Entra (Conditional Access baseline for Business Premium) | [`Products/Entra/`](Products/Entra/README.md) | [Site](https://microsoft.github.io/BestPractice_Deploy-Scripts/entra/) | Available |
 
 > 📖 **Full documentation site:** <https://microsoft.github.io/BestPractice_Deploy-Scripts/>
 > — searchable HTML version of every product's docs, with sidebar
